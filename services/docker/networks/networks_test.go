@@ -3,7 +3,7 @@ package networks
 import (
 	"context"
 	"errors"
-	ts "medovukha/api/rest/v1/types"
+	ts "medovukha/ipc/types"
 	"testing"
 
 	dc "medovukha/services/docker"

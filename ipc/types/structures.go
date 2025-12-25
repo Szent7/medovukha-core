@@ -1,5 +1,15 @@
 package types
 
+type Empty struct{}
+
+type BaseMessage struct {
+	Message string `json:"message"`
+}
+
+type BaseID struct {
+	ID string `json:"id"`
+}
+
 type ContainerBaseInfo struct {
 	Id          string   `json:"id"`
 	Names       []string `json:"names"`

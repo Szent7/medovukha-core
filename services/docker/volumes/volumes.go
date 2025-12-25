@@ -2,7 +2,7 @@ package volumes
 
 import (
 	"context"
-	"medovukha/api/rest/v1/types"
+	"medovukha/ipc/types"
 
 	dc "medovukha/services/docker"
 

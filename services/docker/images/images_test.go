@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
-	ts "medovukha/api/rest/v1/types"
+	ts "medovukha/ipc/types"
 	"strings"
 	"testing"
 

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"medovukha/api/rest/v1/types"
+	"medovukha/ipc/types"
 	dc "medovukha/services/docker"
 	image "medovukha/services/docker/images"
 	"os"

@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
-	ts "medovukha/api/rest/v1/types"
+	ts "medovukha/ipc/types"
 	dc "medovukha/services/docker"
 	"os"
 	"os/exec"
