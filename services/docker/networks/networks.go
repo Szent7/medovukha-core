@@ -2,9 +2,9 @@ package networks
 
 import (
 	"context"
-	"medovukha/ipc/types"
+	"github.com/Szent7/medovukha-core/ipc/types"
 
-	dc "medovukha/services/docker"
+	dc "github.com/Szent7/medovukha-core/services/docker"
 
 	"github.com/docker/docker/api/types/network"
 )

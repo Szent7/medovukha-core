@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"io"
-	ts "medovukha/ipc/types"
+	ts "github.com/Szent7/medovukha-core/ipc/types"
 	"strings"
 	"testing"
 
-	dc "medovukha/services/docker"
+	dc "github.com/Szent7/medovukha-core/services/docker"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/image"

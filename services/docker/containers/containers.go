@@ -4,12 +4,13 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"medovukha/ipc/types"
-	dc "medovukha/services/docker"
-	image "medovukha/services/docker/images"
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/Szent7/medovukha-core/ipc/types"
+	dc "github.com/Szent7/medovukha-core/services/docker"
+	image "github.com/Szent7/medovukha-core/services/docker/images"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"

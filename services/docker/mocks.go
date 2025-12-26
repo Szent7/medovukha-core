@@ -99,6 +99,7 @@ func (m *MockDockerClient) VolumeList(ctx context.Context, options volume.ListOp
 }
 
 // Events
+// This is a bad mock. Stub to avoid compiler errors
 func (m *MockDockerClient) Events(ctx context.Context, options events.ListOptions) (<-chan events.Message, <-chan error) {
 	msgCh := make(chan events.Message)
 	errCh := make(chan error)

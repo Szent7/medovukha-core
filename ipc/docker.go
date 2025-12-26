@@ -2,33 +2,39 @@ package ipc
 
 import (
 	"context"
+	"log"
 
 	"github.com/docker/docker/client"
+	"google.golang.org/grpc"
 
 	"errors"
 	"fmt"
-	"medovukha/ipc/types"
+
+	dockerpb "github.com/Szent7/medovukha-core/api/docker/v1"
+	"github.com/Szent7/medovukha-core/ipc/types"
 
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 
-	containers "medovukha/services/docker/containers"
-	images "medovukha/services/docker/images"
-	networks "medovukha/services/docker/networks"
-	volumes "medovukha/services/docker/volumes"
-	git "medovukha/services/git"
+	containers "github.com/Szent7/medovukha-core/services/docker/containers"
+	images "github.com/Szent7/medovukha-core/services/docker/images"
+	networks "github.com/Szent7/medovukha-core/services/docker/networks"
+	volumes "github.com/Szent7/medovukha-core/services/docker/volumes"
+	git "github.com/Szent7/medovukha-core/services/git"
 
 	"github.com/docker/docker/api/types/build"
+	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/filters"
 )
 
-type DockerCore struct {
+type DockerService struct {
+	dockerpb.UnimplementedDockerServiceServer
 	cli *client.Client
 }
 
-func NewDockerCore() (*DockerCore, error) {
+func NewDockerCore() (*DockerService, error) {
 	cli, err := client.NewClientWithOpts(
 		client.FromEnv,
 		client.WithAPIVersionNegotiation(),
@@ -36,134 +42,204 @@ func NewDockerCore() (*DockerCore, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &DockerCore{cli: cli}, nil
+	return &DockerService{cli: cli}, nil
 }
 
-func (d *DockerCore) Close() error {
+func (d *DockerService) Close() error {
 	return d.cli.Close()
 }
 
 // Containers
-func (d *DockerCore) GetContainerList(args *types.Empty, reply *[]types.ContainerBaseInfo) error {
-	conList, err := containers.GetContainerBaseInfoList(d.cli)
+func (d *DockerService) GetContainerList(ctx context.Context, req *dockerpb.Empty) (*dockerpb.ListContainerBaseInfo, error) {
+	containerList, err := containers.GetContainerBaseInfoList(d.cli)
 	if err != nil {
 		fmt.Printf("GetContainerList error: %s\n", err.Error())
-		return err
+		return nil, err
 	}
 
-	*reply = conList
-	return nil
+	var serializedList dockerpb.ListContainerBaseInfo
+	serializedList.Items = make([]*dockerpb.ContainerBaseInfo, len(containerList))
+	for i := range containerList {
+		serializedList.Items[i] = &dockerpb.ContainerBaseInfo{
+			Id:        containerList[i].Id,
+			Names:     containerList[i].Names,
+			ImageName: containerList[i].ImageName,
+			Ports:     convertPorts(containerList[i].Ports),
+			Created:   containerList[i].Created,
+			State:     containerList[i].State,
+		}
+	}
+
+	return &serializedList, nil
 }
 
-func (d *DockerCore) PauseContainerByID(args *types.BaseID, reply *types.BaseMessage) error {
-	if err := containers.PauseContainerByID(d.cli, args.ID); err != nil {
+func (d *DockerService) PauseContainerByID(ctx context.Context, req *dockerpb.BaseID) (*dockerpb.BaseResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("PauseContainerByID error: nil request")
+	}
+
+	if err := containers.PauseContainerByID(d.cli, req.Id); err != nil {
 		fmt.Printf("PauseContainerByID error: %s\n", err.Error())
-		return fmt.Errorf("PauseContainerByID error: %s", err.Error())
+		return nil, fmt.Errorf("PauseContainerByID error: %s", err.Error())
 	}
 
-	*reply = types.BaseMessage{Message: "Paused: " + args.ID}
-	return nil
+	return &dockerpb.BaseResponse{Message: "Paused: " + req.Id}, nil
 }
 
-func (d *DockerCore) UnpauseContainerByID(args *types.BaseID, reply *types.BaseMessage) error {
-	if err := containers.UnpauseContainerByID(d.cli, args.ID); err != nil {
+func (d *DockerService) UnpauseContainerByID(ctx context.Context, req *dockerpb.BaseID) (*dockerpb.BaseResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("UnpauseContainerByID error: nil request")
+	}
+
+	if err := containers.UnpauseContainerByID(d.cli, req.Id); err != nil {
 		fmt.Printf("UnpauseContainerByID error: %s\n", err.Error())
-		return fmt.Errorf("UnpauseContainerByID error: %s", err.Error())
+		return nil, fmt.Errorf("UnpauseContainerByID error: %s", err.Error())
 	}
 
-	*reply = types.BaseMessage{Message: "Unpaused: " + args.ID}
-	return nil
+	return &dockerpb.BaseResponse{Message: "Unpaused: " + req.Id}, nil
 }
 
-func (d *DockerCore) KillContainerByID(args *types.BaseID, reply *types.BaseMessage) error {
-	if err := containers.KillContainerByID(d.cli, args.ID); err != nil {
+func (d *DockerService) KillContainerByID(ctx context.Context, req *dockerpb.BaseID) (*dockerpb.BaseResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("KillContainerByID error: nil request")
+	}
+
+	if err := containers.KillContainerByID(d.cli, req.Id); err != nil {
 		fmt.Printf("KillContainerByID error: %s\n", err.Error())
-		return fmt.Errorf("KillContainerByID error: %s", err.Error())
+		return nil, fmt.Errorf("KillContainerByID error: %s", err.Error())
 	}
 
-	*reply = types.BaseMessage{Message: "Killed: " + args.ID}
-	return nil
+	return &dockerpb.BaseResponse{Message: "Killed: " + req.Id}, nil
 }
 
-func (d *DockerCore) StartContainerByID(args *types.BaseID, reply *types.BaseMessage) error {
-	if err := containers.StartContainerByID(d.cli, args.ID); err != nil {
+func (d *DockerService) StartContainerByID(ctx context.Context, req *dockerpb.BaseID) (*dockerpb.BaseResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("StartContainerByID error: nil request")
+	}
+
+	if err := containers.StartContainerByID(d.cli, req.Id); err != nil {
 		fmt.Printf("StartContainerByID error: %s\n", err.Error())
-		return fmt.Errorf("StartContainerByID error: %s", err.Error())
+		return nil, fmt.Errorf("StartContainerByID error: %s", err.Error())
 	}
 
-	*reply = types.BaseMessage{Message: "Started: " + args.ID}
-	return nil
+	return &dockerpb.BaseResponse{Message: "Started: " + req.Id}, nil
 }
 
-func (d *DockerCore) StopContainerByID(args *types.BaseID, reply *types.BaseMessage) error {
-	if err := containers.StopContainerByID(d.cli, args.ID); err != nil {
+func (d *DockerService) StopContainerByID(ctx context.Context, req *dockerpb.BaseID) (*dockerpb.BaseResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("StopContainerByID error: nil request")
+	}
+
+	if err := containers.StopContainerByID(d.cli, req.Id); err != nil {
 		fmt.Printf("StopContainerByID error: %s\n", err.Error())
-		return fmt.Errorf("StopContainerByID error: %s", err.Error())
+		return nil, fmt.Errorf("StopContainerByID error: %s", err.Error())
 	}
 
-	*reply = types.BaseMessage{Message: "Stopped: " + args.ID}
-	return nil
+	return &dockerpb.BaseResponse{Message: "Stopped: " + req.Id}, nil
 }
 
-func (d *DockerCore) RestartContainerByID(args *types.BaseID, reply *types.BaseMessage) error {
-	if err := containers.RestartContainerByID(d.cli, args.ID); err != nil {
+func (d *DockerService) RestartContainerByID(ctx context.Context, req *dockerpb.BaseID) (*dockerpb.BaseResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("RestartContainerByID error: nil request")
+	}
+
+	if err := containers.RestartContainerByID(d.cli, req.Id); err != nil {
 		fmt.Printf("RestartContainerByID error: %s\n", err.Error())
-		return fmt.Errorf("RestartContainerByID error: %s", err.Error())
+		return nil, fmt.Errorf("RestartContainerByID error: %s", err.Error())
 	}
 
-	*reply = types.BaseMessage{Message: "Restarted: " + args.ID}
-	return nil
+	return &dockerpb.BaseResponse{Message: "Restarted: " + req.Id}, nil
 }
 
-func (d *DockerCore) RemoveContainerByID(args *types.BaseID, reply *types.BaseMessage) error {
-	if err := containers.RemoveContainerByID(d.cli, args.ID); err != nil {
-		fmt.Printf("RemoveContainerByID error: %s\n", err.Error())
-		return fmt.Errorf("RemoveContainerByID error: %s", err.Error())
+func (d *DockerService) RemoveContainerByID(ctx context.Context, req *dockerpb.BaseID) (*dockerpb.BaseResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("RemoveContainerByID error: nil request")
 	}
 
-	*reply = types.BaseMessage{Message: "Removed: " + args.ID}
-	return nil
+	if err := containers.RemoveContainerByID(d.cli, req.Id); err != nil {
+		fmt.Printf("RemoveContainerByID error: %s\n", err.Error())
+		return nil, fmt.Errorf("RemoveContainerByID error: %s", err.Error())
+	}
+
+	return &dockerpb.BaseResponse{Message: "Removed: " + req.Id}, nil
 }
 
 // Images
-func (d *DockerCore) GetImageList(args *types.Empty, reply *[]types.ImageBaseInfo) error {
-	imgList, err := images.GetImageList(d.cli)
+func (d *DockerService) GetImageList(ctx context.Context, req *dockerpb.Empty) (*dockerpb.ListImageBaseInfo, error) {
+	imageList, err := images.GetImageList(d.cli)
 	if err != nil {
 		fmt.Printf("GetImageList error: %s\n", err.Error())
-		return fmt.Errorf("GetImageList error: %s", err.Error())
+		return nil, fmt.Errorf("GetImageList error: %s", err.Error())
 	}
 
-	*reply = imgList
-	return nil
+	var serializedList dockerpb.ListImageBaseInfo
+	serializedList.Items = make([]*dockerpb.ImageBaseInfo, len(imageList))
+	for i := range imageList {
+		serializedList.Items[i] = &dockerpb.ImageBaseInfo{
+			Id:      imageList[i].Id,
+			Tags:    imageList[i].Tags,
+			Size:    imageList[i].Size,
+			Created: imageList[i].Created,
+		}
+	}
+
+	return &serializedList, nil
 }
 
 // Networks
-func (d *DockerCore) GetNetworkList(args *types.Empty, reply *[]types.NetworkBaseInfo) error {
+func (d *DockerService) GetNetworkList(ctx context.Context, req *dockerpb.Empty) (*dockerpb.ListNetworkBaseInfo, error) {
 	networkList, err := networks.GetNetworkList(d.cli)
 	if err != nil {
 		fmt.Printf("GetNetworkList error: %s\n", err.Error())
-		return fmt.Errorf("GetNetworkList error: %s", err.Error())
+		return nil, fmt.Errorf("GetNetworkList error: %s", err.Error())
 	}
 
-	*reply = networkList
-	return nil
+	var serializedList dockerpb.ListNetworkBaseInfo
+	serializedList.Items = make([]*dockerpb.NetworkBaseInfo, len(networkList))
+	for i := range networkList {
+		serializedList.Items[i] = &dockerpb.NetworkBaseInfo{
+			Name:          networkList[i].Name,
+			Id:            networkList[i].Id,
+			Driver:        networkList[i].Driver,
+			EnableIpv6:    networkList[i].EnableIPv6,
+			IpamDriver:    networkList[i].IPAMDriver,
+			Subnet:        networkList[i].Subnet,
+			Gateway:       networkList[i].Gateway,
+			Attachable:    networkList[i].Attachable,
+			DockerNetwork: networkList[i].DockerNetwork,
+		}
+	}
+
+	return &serializedList, nil
 }
 
 // Volumes
-func (d *DockerCore) GetVolumeList(args *types.Empty, reply *[]types.VolumeBaseInfo) error {
+func (d *DockerService) GetVolumeList(ctx context.Context, req *dockerpb.Empty) (*dockerpb.ListVolumeBaseInfo, error) {
 	volumeList, err := volumes.GetVolumeList(d.cli)
 	if err != nil {
 		fmt.Printf("GetVolumeList error: %s\n", err.Error())
-		return fmt.Errorf("GetVolumeList error: %s", err.Error())
+		return nil, fmt.Errorf("GetVolumeList error: %s", err.Error())
 	}
 
-	*reply = volumeList
-	return nil
+	var serializedList dockerpb.ListVolumeBaseInfo
+	serializedList.Items = make([]*dockerpb.VolumeBaseInfo, len(volumeList))
+	for i := range volumeList {
+		serializedList.Items[i] = &dockerpb.VolumeBaseInfo{
+			Name:       volumeList[i].Name,
+			Driver:     volumeList[i].Driver,
+			Mountpoint: volumeList[i].Mountpoint,
+			Created:    volumeList[i].Created,
+		}
+	}
+
+	return &serializedList, nil
 }
 
 // Deploy
-func (d *DockerCore) CreateFromGit(args *types.DeployFromGit, reply *types.BaseMessage) error {
-	ctx := context.Background()
+func (d *DockerService) CreateFromGit(ctx context.Context, req *dockerpb.DeployFromGit) (*dockerpb.BaseResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("CreateFromGit error: nil request")
+	}
 	//
 	//
 	// Clonning repo from git into temp dir
@@ -177,9 +253,9 @@ func (d *DockerCore) CreateFromGit(args *types.DeployFromGit, reply *types.BaseM
 	defer os.RemoveAll(tempDir)
 	defer fmt.Println("Deleted tempDir: " + tempDir)
 
-	if err := git.CloneRepo(&git.RepoCloner{}, args.URL, tempDir); err != nil {
+	if err := git.CloneRepo(&git.RepoCloner{}, req.Url, tempDir); err != nil {
 		fmt.Printf("CloneRepo error: %s\n", err.Error())
-		return fmt.Errorf("CreateFromGit error: %s", err.Error())
+		return nil, fmt.Errorf("CreateFromGit error: %s", err.Error())
 	}
 	//
 	//
@@ -188,18 +264,18 @@ func (d *DockerCore) CreateFromGit(args *types.DeployFromGit, reply *types.BaseM
 	//
 	dockerfileDir := filepath.Join(tempDir, "Dockerfile")
 	dockercomposeDir := filepath.Join(tempDir, "docker-compose.yml")
-	if args.Dockerfile == "" {
+	if req.Dockerfile == "" {
 		// Dockerfile is not specified in the request, check in the directory
 		// If Dockerfile doesn`t exist, throw error
 		if !fileExists(dockerfileDir) {
 			fmt.Println("Dockerfile empty error")
-			return fmt.Errorf("CreateFromGit error: Dockerfile empty")
+			return nil, fmt.Errorf("CreateFromGit error: Dockerfile empty")
 		}
 	} else {
 		// If Dockerfile specified in the request, rewrite/create new Dockerfile
-		if err := createFile(dockerfileDir, []byte(args.Dockerfile)); err != nil {
+		if err := createFile(dockerfileDir, []byte(req.Dockerfile)); err != nil {
 			fmt.Printf("Dockerfile write error: %s\n", err.Error())
-			return fmt.Errorf("CreateFromGit error: %s", err.Error())
+			return nil, fmt.Errorf("CreateFromGit error: %s", err.Error())
 		} else {
 			fmt.Println("Dockerfile redefined")
 		}
@@ -209,10 +285,10 @@ func (d *DockerCore) CreateFromGit(args *types.DeployFromGit, reply *types.BaseM
 	// Parse tags from repo (for image name)
 	//
 	//
-	repo, err := repoFromURL(args.URL)
+	repo, err := repoFromURL(req.Url)
 	if err != nil {
 		fmt.Printf("Repo error: %s\n", err.Error())
-		return fmt.Errorf("CreateFromGit error: %s", err.Error())
+		return nil, fmt.Errorf("CreateFromGit error: %s", err.Error())
 	}
 	tags := []string{repo + ":latest"} //args.URL
 	//
@@ -222,7 +298,7 @@ func (d *DockerCore) CreateFromGit(args *types.DeployFromGit, reply *types.BaseM
 	//
 	if err := containers.RemoveContainerByImage(ctx, d.cli, tags[0]); err != nil {
 		fmt.Printf("Error remove container: %s\n", err.Error())
-		return fmt.Errorf("CreateFromGit error: %s", err.Error())
+		return nil, fmt.Errorf("CreateFromGit error: %s", err.Error())
 	}
 	//
 	//
@@ -231,7 +307,7 @@ func (d *DockerCore) CreateFromGit(args *types.DeployFromGit, reply *types.BaseM
 	//
 	if err := images.RemoveImageByTag(ctx, d.cli, tags[0]); err != nil {
 		fmt.Printf("Error remove image: %s\n", err.Error())
-		return fmt.Errorf("CreateFromGit error: %s", err.Error())
+		return nil, fmt.Errorf("CreateFromGit error: %s", err.Error())
 	}
 	//
 	//
@@ -241,7 +317,7 @@ func (d *DockerCore) CreateFromGit(args *types.DeployFromGit, reply *types.BaseM
 	newImageId, err := images.BuildImageNew(d.cli, tempDir, tags)
 	if err != nil {
 		fmt.Printf("Docker client error: %s\n", err.Error())
-		return fmt.Errorf("CreateFromGit error: %s", err.Error())
+		return nil, fmt.Errorf("CreateFromGit error: %s", err.Error())
 	}
 	//
 	//
@@ -254,56 +330,97 @@ func (d *DockerCore) CreateFromGit(args *types.DeployFromGit, reply *types.BaseM
 	_, err = d.cli.ImagesPrune(ctx, pruneFilters)
 	if err != nil {
 		fmt.Printf("Docker client error: %s\n", err.Error())
-		return fmt.Errorf("CreateFromGit error: %s", err.Error())
+		return nil, fmt.Errorf("CreateFromGit error: %s", err.Error())
 	}
 	_, err = d.cli.BuildCachePrune(ctx, build.CachePruneOptions{All: true})
 	if err != nil {
 		fmt.Printf("Docker client error: %s\n", err.Error())
-		return fmt.Errorf("CreateFromGit error: %s", err.Error())
+		return nil, fmt.Errorf("CreateFromGit error: %s", err.Error())
 	}
 	//
 	//
 	// Check DockerCompose in request
 	//
 	//
-	if args.DockerCompose == "" {
+	if req.DockerCompose == "" {
 		// DockerCompose is not specified in the request, check DockerRun in the request
-		if args.DockerRun == "" {
+		if req.DockerRun == "" {
 			// DockerRun is not specified in the request, check DockerCompose in the directory
 			if !fileExists(dockercomposeDir) {
 				fmt.Println("Created image, but not command to launch container")
-				*reply = types.BaseMessage{Message: "created but not launched: " + newImageId}
-				return nil
+				return &dockerpb.BaseResponse{Message: "created but not launched: " + newImageId}, nil
 			} else {
 				if err := containers.ExecDockerComposeUp(dockercomposeDir); err != nil {
-					*reply = types.BaseMessage{Message: "the image was created, but an error occurred when starting the container (dockerCompose): " + newImageId}
-					return nil
+					return &dockerpb.BaseResponse{Message: "the image was created, but an error occurred when starting the container (dockerCompose): " + newImageId}, nil
 				}
 			}
 		} else {
-			if err := containers.ExecDockerRun(args.DockerRun); err != nil {
-				*reply = types.BaseMessage{Message: "the image was created, but an error occurred when starting the container (dockerRun): " + newImageId}
-				return nil
+			if err := containers.ExecDockerRun(req.DockerRun); err != nil {
+				return &dockerpb.BaseResponse{Message: "the image was created, but an error occurred when starting the container (dockerRun): " + newImageId}, nil
 			}
 		}
 	} else {
 		// If Dockerfile specified in the request, rewrite/create new Dockerfile
-		if err := createFile(dockercomposeDir, []byte(args.DockerCompose)); err != nil {
+		if err := createFile(dockercomposeDir, []byte(req.DockerCompose)); err != nil {
 			fmt.Printf("DockerCompose write error: %s\n", err.Error())
-			return fmt.Errorf("CreateFromGit error: %s", err.Error())
+			return nil, fmt.Errorf("CreateFromGit error: %s", err.Error())
 		} else {
 			fmt.Println("DockerCompose redefined")
 			if err := containers.ExecDockerComposeUp(dockercomposeDir); err != nil {
-				*reply = types.BaseMessage{Message: "the image was created, but an error occurred when starting the container (dockerCompose): " + newImageId}
-				return nil
+				return &dockerpb.BaseResponse{Message: "the image was created, but an error occurred when starting the container (dockerCompose): " + newImageId}, nil
 			}
 		}
 	}
 
-	*reply = types.BaseMessage{Message: "created and launched: " + newImageId}
-	return nil
+	return &dockerpb.BaseResponse{Message: "created and launched: " + newImageId}, nil
 }
 
+// events
+func (d *DockerService) GetContainerState(req *dockerpb.Empty, stream grpc.ServerStreamingServer[dockerpb.ContainerState]) error {
+	ctx := stream.Context()
+
+	eventCh := make(chan events.Message)
+	errCh := make(chan error)
+	go containers.EventStream(ctx, d.cli, eventCh, errCh)
+
+	fmt.Println("Start gRPC Server-Side streaming")
+
+	for {
+		select {
+		case <-ctx.Done():
+			{
+				fmt.Println("Stop gRPC Server-Side streaming")
+				return nil
+			}
+		case err := <-errCh:
+			{
+				if err != nil {
+					fmt.Println("Stop gRPC Server-Side streaming")
+					return err
+				}
+			}
+		case event := <-eventCh:
+			{
+				// fmt.Println("New event in GetContainerState")
+				resp := &dockerpb.ContainerState{
+					Type:   string(event.Type),
+					Action: string(event.Action),
+					Actor: &dockerpb.Actor{
+						Id:         event.Actor.ID,
+						Attributes: event.Actor.Attributes,
+					},
+				}
+				if err := stream.Send(resp); err != nil {
+					log.Printf("Send error: %s", err.Error())
+					fmt.Println("Stop gRPC Server-Side streaming")
+					return err
+				}
+			}
+		}
+	}
+}
+
+// common
 func fileExists(path string) bool {
 	_, err := os.Stat(path)
 	if err == nil {
@@ -343,4 +460,21 @@ func repoFromURL(raw string) (repo string, err error) {
 		return "", fmt.Errorf("invalid GitHub URL: %s", raw)
 	}
 	return parts[0] + "/" + parts[1], nil
+}
+
+func convertPorts(jsonPorts []types.Port) []*dockerpb.Port {
+	if len(jsonPorts) == 0 {
+		return nil
+	}
+
+	grpcPorts := make([]*dockerpb.Port, len(jsonPorts))
+	for i := range jsonPorts {
+		grpcPorts[i] = &dockerpb.Port{
+			Ip:          jsonPorts[i].IP,
+			PrivatePort: uint32(jsonPorts[i].PrivatePort),
+			PublicPort:  uint32(jsonPorts[i].PublicPort),
+			Type:        jsonPorts[i].Type,
+		}
+	}
+	return grpcPorts
 }

@@ -2,46 +2,39 @@ package main
 
 import (
 	"log"
-	"medovukha/ipc"
 	"net"
-	"net/rpc"
 	"os"
+
+	dockerpb "github.com/Szent7/medovukha-core/api/docker/v1"
+	"github.com/Szent7/medovukha-core/ipc"
+	"google.golang.org/grpc"
 )
 
 func main() {
 	const socketPath = "/tmp/medovukha-core.sock"
-	const serverName = "MedovukhaCore"
 
 	if _, err := os.Stat(socketPath); err == nil {
 		os.Remove(socketPath)
 	}
 
-	ln, err := net.Listen("unix", socketPath)
+	lis, err := net.Listen("unix", socketPath)
 	if err != nil {
 		log.Fatalf("cannot listen on %s: %s\n", socketPath, err.Error())
 	}
-	defer ln.Close()
+	defer lis.Close()
 	os.Chmod(socketPath, 0660)
 
-	core, err := ipc.NewDockerCore()
+	dockerService, err := ipc.NewDockerCore()
 	if err != nil {
 		log.Fatalf("cannot init docker client: %s", err.Error())
 	}
-	defer core.Close()
+	defer dockerService.Close()
 
-	rpcServer := rpc.NewServer()
-	if err := rpcServer.RegisterName(serverName, core); err != nil {
-		log.Fatalf("cannot register rpc: %s", err.Error())
-	}
+	s := grpc.NewServer()
+	dockerpb.RegisterDockerServiceServer(s, dockerService)
 
-	log.Printf("%s listening on %s\n", serverName, socketPath)
-	for {
-		conn, err := ln.Accept()
-		log.Printf("request from: %s\n", conn.RemoteAddr().String())
-		if err != nil {
-			log.Printf("accept error: %s\n", err.Error())
-			continue
-		}
-		go rpcServer.ServeConn(conn)
+	log.Printf("gRPC server listening on %s\n", socketPath)
+	if err := s.Serve(lis); err != nil {
+		log.Fatalf("gRPC server error: %s", err.Error())
 	}
 }

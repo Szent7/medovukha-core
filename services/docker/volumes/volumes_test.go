@@ -3,10 +3,10 @@ package volumes
 import (
 	"context"
 	"errors"
-	ts "medovukha/ipc/types"
+	ts "github.com/Szent7/medovukha-core/ipc/types"
 	"testing"
 
-	dc "medovukha/services/docker"
+	dc "github.com/Szent7/medovukha-core/services/docker"
 
 	"github.com/docker/docker/api/types/volume"
 	"github.com/stretchr/testify/assert"

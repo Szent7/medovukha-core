@@ -3,13 +3,14 @@ package containers
 import (
 	"context"
 	"errors"
-	"io"
-	ts "medovukha/ipc/types"
 	"os"
+	"io"
 	"strings"
 	"testing"
 
-	dc "medovukha/services/docker"
+	ts "github.com/Szent7/medovukha-core/ipc/types"
+
+	dc "github.com/Szent7/medovukha-core/services/docker"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
