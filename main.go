@@ -1,62 +1,40 @@
 package main
 
 import (
-	"medovukha/api/rest/middlewares"
-	restapi "medovukha/api/rest/v1"
+	"log"
+	"net"
+	"os"
 
-	"github.com/gin-gonic/gin"
+	"github.com/Szent7/medovukha-core/ipc"
+	dockerpb "github.com/Szent7/medovukha-core/proto/docker/v1"
+	"google.golang.org/grpc"
 )
 
 func main() {
-	router := gin.Default()
+	const socketPath = "/tmp/medovukha-core.sock"
 
-	// wsHub := websockets.NewHub()
-	// go wsHub.Run()
-
-	router.Static("/_app/immutable/", "./build/_app/immutable/")
-	router.NoRoute(func(c *gin.Context) {
-		c.File("./build/index.html")
-	})
-
-	//! dev headers
-	router.Use(middlewares.CORSMiddleware())
-
-	router.GET("/ping", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"message": "pong",
-		})
-	})
-
-	// ws := router.Group("/ws")
-	// {
-	// 	ws.GET("/containerEvents", websockets.WsHandler(wsHub))
-	// }
-
-	rest := router.Group("/rest")
-	{
-		v1 := rest.Group("/v1")
-		{
-			//Containers
-			v1.POST("/createTest", restapi.CreateTestContainer)
-			v1.GET("/getContainerList", restapi.GetContainerList)
-			v1.POST("/pauseContainerByid", restapi.PauseContainerByID)
-			v1.POST("/unpauseContainerById", restapi.UnpauseContainerByID)
-			v1.POST("/killContainerById", restapi.KillContainerByID)
-			v1.POST("/startContainerById", restapi.StartContainerByID)
-			v1.POST("/stopContainerById", restapi.StopContainerByID)
-			v1.POST("/restartContainerById", restapi.RestartContainerByID)
-			v1.POST("/removeContainerById", restapi.RemoveContainerByID)
-			//Images
-			v1.GET("/getImageList", restapi.GetImageList)
-			//v1.POST("/buildImageByRepo", restapi.BuildImageByRepo)
-			//Networks
-			v1.GET("/getNetworkList", restapi.GetNetworkList)
-			//Volumes
-			v1.GET("/getVolumeList", restapi.GetVolumeList)
-			//Deploy
-			v1.POST("/createFromGit", restapi.CreateFromGit)
-		}
+	if _, err := os.Stat(socketPath); err == nil {
+		os.Remove(socketPath)
 	}
 
-	router.Run("0.0.0.0:10015")
+	lis, err := net.Listen("unix", socketPath)
+	if err != nil {
+		log.Fatalf("cannot listen on %s: %s\n", socketPath, err.Error())
+	}
+	defer lis.Close()
+	os.Chmod(socketPath, 0660)
+
+	dockerService, err := ipc.NewDockerCore()
+	if err != nil {
+		log.Fatalf("cannot init docker client: %s", err.Error())
+	}
+	defer dockerService.Close()
+
+	s := grpc.NewServer()
+	dockerpb.RegisterDockerServiceServer(s, dockerService)
+
+	log.Printf("gRPC server listening on %s\n", socketPath)
+	if err := s.Serve(lis); err != nil {
+		log.Fatalf("gRPC server error: %s", err.Error())
+	}
 }

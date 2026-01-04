@@ -1,0 +1,5 @@
+version: "v2"
+root: proto
+lint:
+  use:
+    - DEFAULT

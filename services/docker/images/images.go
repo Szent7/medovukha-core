@@ -2,16 +2,19 @@ package images
 
 import (
 	"archive/tar"
+	"bufio"
 	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"log"
-	ts "medovukha/api/rest/v1/types"
-	dc "medovukha/services/docker"
 	"os"
 	"os/exec"
 	"path/filepath"
+
+	ts "github.com/Szent7/medovukha-core/ipc/types"
+	"github.com/Szent7/medovukha-core/services/common"
+	dc "github.com/Szent7/medovukha-core/services/docker"
 
 	"github.com/docker/docker/api/types/build"
 	"github.com/docker/docker/api/types/image"
@@ -124,7 +127,7 @@ func RemoveImageByTag(ctx context.Context, cli dc.IDockerClient, imageTag string
 	return nil
 }
 
-func BuildImageNew(cli dc.IDockerClient, path string, tags []string) (string, error) {
+func BuildImageNew(cli dc.IDockerClient, path string, tags []string, logCh chan string) (string, error) {
 	ctx := context.Background()
 
 	if len(tags) < 1 {
@@ -139,8 +142,16 @@ func BuildImageNew(cli dc.IDockerClient, path string, tags []string) (string, er
 	}
 
 	cmd := exec.CommandContext(ctx, "docker", args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	pr, pw := io.Pipe()
+	cmd.Stdout = pw
+	cmd.Stderr = pw
+
+	go func() {
+		scanner := bufio.NewScanner(pr)
+		for scanner.Scan() {
+			common.SendLog(logCh, scanner.Text())
+		}
+	}()
 
 	if err := cmd.Run(); err != nil {
 		return "", fmt.Errorf("build failed: %s", err.Error())
