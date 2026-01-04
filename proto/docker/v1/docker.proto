@@ -1,0 +1,260 @@
+syntax = "proto3";
+
+package docker.v1;
+
+option go_package = "github.com/Szent7/medovukha-core/api/docker/v1;dockerpb";
+
+service DockerService {
+  //
+  //
+  // common
+  //
+  //
+  rpc Ping(PingRequest) returns (PingResponse);
+  //
+  //
+  //containers
+  //
+  //
+  rpc GetContainerList(GetContainerListRequest) returns (GetContainerListResponse);
+  rpc PauseContainerByID(PauseContainerByIDRequest) returns (PauseContainerByIDResponse);
+  rpc UnpauseContainerByID(UnpauseContainerByIDRequest) returns (UnpauseContainerByIDResponse);
+  rpc KillContainerByID(KillContainerByIDRequest) returns (KillContainerByIDResponse);
+  rpc StartContainerByID(StartContainerByIDRequest) returns (StartContainerByIDResponse);
+  rpc StopContainerByID(StopContainerByIDRequest) returns (StopContainerByIDResponse);
+  rpc RestartContainerByID(RestartContainerByIDRequest) returns (RestartContainerByIDResponse);
+  rpc RemoveContainerByID(RemoveContainerByIDRequest) returns (RemoveContainerByIDResponse);
+  //
+  //
+  //images
+  //
+  //
+  rpc GetImageList(GetImageListRequest) returns (GetImageListResponse);
+  //
+  //
+  //networks
+  //
+  //
+  rpc GetNetworkList(GetNetworkListRequest) returns (GetNetworkListResponse);
+  //
+  //
+  //volumes
+  //
+  //
+  rpc GetVolumeList(GetVolumeListRequest) returns (GetVolumeListResponse);
+  //
+  //
+  //deploy
+  //
+  //
+  rpc CreateFromGit(CreateFromGitRequest) returns (CreateFromGitResponse);
+  rpc StreamBuildLogs(StreamBuildLogsRequest) returns (stream StreamBuildLogsResponse);
+  //
+  //
+  //events
+  //
+  //
+  rpc GetContainerState(GetContainerStateRequest) returns (stream GetContainerStateResponse);
+}
+
+//
+//
+//common
+//
+//
+message PingRequest {}
+
+message PingResponse {
+  string message = 1;
+}
+
+//
+//
+//containers
+//
+//
+message Port {
+  string ip = 1;
+  uint32 private_port = 2; //uint16 in Go
+  uint32 public_port = 3; //uint16 in Go
+  string type = 4;
+}
+
+message GetContainerListResponse {
+  repeated ContainerBaseInfo items = 1;
+}
+
+message ContainerBaseInfo {
+  string id = 1;
+  repeated string names = 2;
+  string image_name = 3;
+  repeated Port ports = 4;
+  int64 created = 5;
+  string state = 6;
+}
+
+message PauseContainerByIDRequest {
+  string id = 1;
+}
+message PauseContainerByIDResponse {
+  string message = 1;
+}
+message UnpauseContainerByIDRequest {
+  string id = 1;
+}
+message UnpauseContainerByIDResponse {
+  string message = 1;
+}
+message KillContainerByIDRequest {
+  string id = 1;
+}
+message KillContainerByIDResponse {
+  string message = 1;
+}
+message StartContainerByIDRequest {
+  string id = 1;
+}
+message StartContainerByIDResponse {
+  string message = 1;
+}
+message StopContainerByIDRequest {
+  string id = 1;
+}
+message StopContainerByIDResponse {
+  string message = 1;
+}
+message RestartContainerByIDRequest {
+  string id = 1;
+}
+message RestartContainerByIDResponse {
+  string message = 1;
+}
+message RemoveContainerByIDRequest {
+  string id = 1;
+}
+message RemoveContainerByIDResponse {
+  string message = 1;
+}
+
+message GetContainerListRequest {}
+
+//
+//
+//images
+//
+//
+message GetImageListRequest {}
+
+message GetImageListResponse {
+  repeated ImageBaseInfo items = 1;
+}
+
+message ImageBaseInfo {
+  string id = 1;
+  repeated string tags = 2;
+  int64 size = 3;
+  int64 created = 4;
+}
+
+//
+//
+//networks
+//
+//
+message GetNetworkListRequest {}
+
+message GetNetworkListResponse {
+  repeated NetworkBaseInfo items = 1;
+}
+
+message NetworkBaseInfo {
+  string name = 1;
+  string id = 2;
+  string driver = 3;
+  bool enable_ipv6 = 4;
+  string ipam_driver = 5;
+  repeated string subnet = 6;
+  repeated string gateway = 7;
+  bool attachable = 8;
+  bool docker_network = 9;
+}
+
+//
+//
+//volumes
+//
+//
+message GetVolumeListRequest {}
+
+message GetVolumeListResponse {
+  repeated VolumeBaseInfo items = 1;
+}
+
+message VolumeBaseInfo {
+  string name = 1;
+  string driver = 2;
+  string mountpoint = 3;
+  string created = 4;
+}
+
+//
+//
+//deploy
+//
+//
+message CreateFromGitRequest {
+  string url = 1;
+  string dockerfile = 2;
+  string docker_compose = 3;
+  string docker_run = 4;
+}
+
+message StreamBuildLogsRequest {
+  string build_id = 1;
+}
+
+message StreamBuildLogsResponse {
+  // oneof payload {
+  //   LogMessage log = 1;
+  //   BuildResult result = 2;
+  // }
+  string line = 1;
+}
+
+// message LogMessage {
+//   string line = 1;
+// }
+
+// message BuildResult {
+//   enum State {
+//     STATE_UNSPECIFIED = 0;
+//     STATE_IMAGE_BUILDED = 1;
+//     STATE_SUCCESS = 2;
+//     STATE_FAILED = 3;
+//   }
+//   State state = 1;
+//   string image = 2;
+//   string error = 3;
+// }
+
+message CreateFromGitResponse {
+  string build_id = 1 [json_name = "build_id"];
+}
+
+//
+//
+//events
+//
+//
+message GetContainerStateRequest {}
+
+message GetContainerStateResponse {
+  string type = 1;
+  string action = 2;
+  Actor actor = 3;
+}
+
+message Actor {
+  string id = 1;
+  map<string, string> attributes = 2;
+}

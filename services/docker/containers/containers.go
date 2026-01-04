@@ -1,14 +1,17 @@
 package containers
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/exec"
 	"strings"
 
 	"github.com/Szent7/medovukha-core/ipc/types"
+	"github.com/Szent7/medovukha-core/services/common"
 	dc "github.com/Szent7/medovukha-core/services/docker"
 	image "github.com/Szent7/medovukha-core/services/docker/images"
 
@@ -55,7 +58,7 @@ func GetContainerBaseInfoList(cli dc.IDockerClient) ([]types.ContainerBaseInfo, 
 	return conList, nil
 }
 
-func ExecDockerRun(dockerRunCommand string) error {
+func ExecDockerRun(dockerRunCommand string, logCh chan string) error {
 	ctx := context.Background()
 
 	args := strings.Split(dockerRunCommand, " ")
@@ -64,8 +67,16 @@ func ExecDockerRun(dockerRunCommand string) error {
 	}
 
 	cmd := exec.CommandContext(ctx, "docker", args[1:]...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	pr, pw := io.Pipe()
+	cmd.Stdout = pw
+	cmd.Stderr = pw
+
+	go func() {
+		scanner := bufio.NewScanner(pr)
+		for scanner.Scan() {
+			common.SendLog(logCh, scanner.Text())
+		}
+	}()
 
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("run failed: %s", err.Error())
@@ -74,7 +85,7 @@ func ExecDockerRun(dockerRunCommand string) error {
 	return nil
 }
 
-func ExecDockerComposeUp(composeFilepath string) error {
+func ExecDockerComposeUp(composeFilepath string, logCh chan string) error {
 	ctx := context.Background()
 
 	args := []string{
@@ -84,8 +95,16 @@ func ExecDockerComposeUp(composeFilepath string) error {
 	}
 
 	cmd := exec.CommandContext(ctx, "docker", args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	pr, pw := io.Pipe()
+	cmd.Stdout = pw
+	cmd.Stderr = pw
+
+	go func() {
+		scanner := bufio.NewScanner(pr)
+		for scanner.Scan() {
+			common.SendLog(logCh, scanner.Text())
+		}
+	}()
 
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("composeUp failed: %s", err.Error())

@@ -5,8 +5,8 @@ import (
 	"net"
 	"os"
 
-	dockerpb "github.com/Szent7/medovukha-core/api/docker/v1"
 	"github.com/Szent7/medovukha-core/ipc"
+	dockerpb "github.com/Szent7/medovukha-core/proto/docker/v1"
 	"google.golang.org/grpc"
 )
 
