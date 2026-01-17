@@ -55,7 +55,7 @@ func (d *DockerService) Close() error {
 
 // Containers
 func (d *DockerService) GetContainerList(ctx context.Context, req *dockerpb.GetContainerListRequest) (*dockerpb.GetContainerListResponse, error) {
-	containerList, err := containers.GetContainerBaseInfoList(d.cli)
+	containerList, err := containers.GetContainerBaseInfoList(ctx, d.cli)
 	if err != nil {
 		fmt.Printf("GetContainerList error: %s\n", err.Error())
 		return nil, err
@@ -82,7 +82,7 @@ func (d *DockerService) PauseContainerByID(ctx context.Context, req *dockerpb.Pa
 		return nil, fmt.Errorf("PauseContainerByID error: nil request")
 	}
 
-	if err := containers.PauseContainerByID(d.cli, req.Id); err != nil {
+	if err := containers.PauseContainerByID(ctx, d.cli, req.Id); err != nil {
 		log.Printf("PauseContainerByID error: %s\n", err.Error())
 		return nil, fmt.Errorf("PauseContainerByID error: %s", err.Error())
 	}
@@ -95,7 +95,7 @@ func (d *DockerService) UnpauseContainerByID(ctx context.Context, req *dockerpb.
 		return nil, fmt.Errorf("UnpauseContainerByID error: nil request")
 	}
 
-	if err := containers.UnpauseContainerByID(d.cli, req.Id); err != nil {
+	if err := containers.UnpauseContainerByID(ctx, d.cli, req.Id); err != nil {
 		log.Printf("UnpauseContainerByID error: %s\n", err.Error())
 		return nil, fmt.Errorf("UnpauseContainerByID error: %s", err.Error())
 	}
@@ -108,7 +108,7 @@ func (d *DockerService) KillContainerByID(ctx context.Context, req *dockerpb.Kil
 		return nil, fmt.Errorf("KillContainerByID error: nil request")
 	}
 
-	if err := containers.KillContainerByID(d.cli, req.Id); err != nil {
+	if err := containers.KillContainerByID(ctx, d.cli, req.Id); err != nil {
 		log.Printf("KillContainerByID error: %s\n", err.Error())
 		return nil, fmt.Errorf("KillContainerByID error: %s", err.Error())
 	}
@@ -121,7 +121,7 @@ func (d *DockerService) StartContainerByID(ctx context.Context, req *dockerpb.St
 		return nil, fmt.Errorf("StartContainerByID error: nil request")
 	}
 
-	if err := containers.StartContainerByID(d.cli, req.Id); err != nil {
+	if err := containers.StartContainerByID(ctx, d.cli, req.Id); err != nil {
 		log.Printf("StartContainerByID error: %s\n", err.Error())
 		return nil, fmt.Errorf("StartContainerByID error: %s", err.Error())
 	}
@@ -134,7 +134,7 @@ func (d *DockerService) StopContainerByID(ctx context.Context, req *dockerpb.Sto
 		return nil, fmt.Errorf("StopContainerByID error: nil request")
 	}
 
-	if err := containers.StopContainerByID(d.cli, req.Id); err != nil {
+	if err := containers.StopContainerByID(ctx, d.cli, req.Id); err != nil {
 		log.Printf("StopContainerByID error: %s\n", err.Error())
 		return nil, fmt.Errorf("StopContainerByID error: %s", err.Error())
 	}
@@ -147,7 +147,7 @@ func (d *DockerService) RestartContainerByID(ctx context.Context, req *dockerpb.
 		return nil, fmt.Errorf("RestartContainerByID error: nil request")
 	}
 
-	if err := containers.RestartContainerByID(d.cli, req.Id); err != nil {
+	if err := containers.RestartContainerByID(ctx, d.cli, req.Id); err != nil {
 		log.Printf("RestartContainerByID error: %s\n", err.Error())
 		return nil, fmt.Errorf("RestartContainerByID error: %s", err.Error())
 	}
@@ -160,7 +160,7 @@ func (d *DockerService) RemoveContainerByID(ctx context.Context, req *dockerpb.R
 		return nil, fmt.Errorf("RemoveContainerByID error: nil request")
 	}
 
-	if err := containers.RemoveContainerByID(d.cli, req.Id); err != nil {
+	if err := containers.RemoveContainerByID(ctx, d.cli, req.Id); err != nil {
 		log.Printf("RemoveContainerByID error: %s\n", err.Error())
 		return nil, fmt.Errorf("RemoveContainerByID error: %s", err.Error())
 	}
@@ -170,7 +170,7 @@ func (d *DockerService) RemoveContainerByID(ctx context.Context, req *dockerpb.R
 
 // Images
 func (d *DockerService) GetImageList(ctx context.Context, req *dockerpb.GetImageListRequest) (*dockerpb.GetImageListResponse, error) {
-	imageList, err := images.GetImageList(d.cli)
+	imageList, err := images.GetImageList(ctx, d.cli)
 	if err != nil {
 		log.Printf("GetImageList error: %s\n", err.Error())
 		return nil, fmt.Errorf("GetImageList error: %s", err.Error())
@@ -228,7 +228,7 @@ func (d *DockerService) RemoveImage(ctx context.Context, req *dockerpb.RemoveIma
 
 // Networks
 func (d *DockerService) GetNetworkList(ctx context.Context, req *dockerpb.GetNetworkListRequest) (*dockerpb.GetNetworkListResponse, error) {
-	networkList, err := networks.GetNetworkList(d.cli)
+	networkList, err := networks.GetNetworkList(ctx, d.cli)
 	if err != nil {
 		log.Printf("GetNetworkList error: %s\n", err.Error())
 		return nil, fmt.Errorf("GetNetworkList error: %s", err.Error())
@@ -542,7 +542,7 @@ func (d *DockerService) startGitBuild(req *dockerpb.CreateFromGitRequest, buildI
 	// Build image
 	//
 	//
-	newImageId, err := images.BuildImageNew(d.cli, tempDir, tags, logCh)
+	newImageId, err := images.BuildImageNew(ctx, d.cli, tempDir, tags, logCh)
 	if err != nil {
 		common.SendLog(logCh, err.Error())
 		log.Println(err.Error())
@@ -582,14 +582,14 @@ func (d *DockerService) startGitBuild(req *dockerpb.CreateFromGitRequest, buildI
 				log.Println("Created image, but not command to launch container")
 				return
 			} else {
-				if err := containers.ExecDockerComposeUp(dockercomposeDir, logCh); err != nil {
+				if err := containers.ExecDockerComposeUp(ctx, dockercomposeDir, logCh); err != nil {
 					common.SendLog(logCh, "the image was created, but an error occurred when starting the container (dockerCompose): "+newImageId)
 					log.Println("Created image, but container not launched")
 					return
 				}
 			}
 		} else {
-			if err := containers.ExecDockerRun(req.DockerRun, logCh); err != nil {
+			if err := containers.ExecDockerRun(ctx, req.DockerRun, logCh); err != nil {
 				common.SendLog(logCh, "the image was created, but an error occurred when starting the container (dockerRun): "+newImageId)
 				log.Println("Created image, but container not launched")
 				return
@@ -603,7 +603,7 @@ func (d *DockerService) startGitBuild(req *dockerpb.CreateFromGitRequest, buildI
 			return
 		} else {
 			log.Println("DockerCompose redefined")
-			if err := containers.ExecDockerComposeUp(dockercomposeDir, logCh); err != nil {
+			if err := containers.ExecDockerComposeUp(ctx, dockercomposeDir, logCh); err != nil {
 				common.SendLog(logCh, "the image was created, but an error occurred when starting the container (dockerCompose): "+newImageId)
 				log.Println("Created image, but container not launched")
 				return

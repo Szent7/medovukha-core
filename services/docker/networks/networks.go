@@ -10,9 +10,7 @@ import (
 	"github.com/docker/docker/api/types/network"
 )
 
-func GetNetworkList(cli dc.IDockerClient) ([]types.NetworkBaseInfo, error) {
-	ctx := context.Background()
-
+func GetNetworkList(ctx context.Context, cli dc.IDockerClient) ([]types.NetworkBaseInfo, error) {
 	networks, err := GetNetworkRawList(ctx, cli)
 	if err != nil {
 		return nil, err

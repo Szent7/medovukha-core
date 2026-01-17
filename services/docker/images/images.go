@@ -20,7 +20,7 @@ import (
 	"github.com/docker/docker/api/types/image"
 )
 
-func PullImage(cli dc.IDockerClient, ctx context.Context, imageName string) error {
+func PullImage(ctx context.Context, cli dc.IDockerClient, imageName string) error {
 	out, err := cli.ImagePull(ctx, imageName, image.PullOptions{})
 	if err != nil {
 		return err
@@ -30,8 +30,8 @@ func PullImage(cli dc.IDockerClient, ctx context.Context, imageName string) erro
 	return nil
 }
 
-func GetImageList(cli dc.IDockerClient) ([]ts.ImageBaseInfo, error) {
-	images, err := GetRawImageList(cli)
+func GetImageList(ctx context.Context, cli dc.IDockerClient) ([]ts.ImageBaseInfo, error) {
+	images, err := GetRawImageList(ctx, cli)
 	if err != nil {
 		return nil, err
 	}
@@ -49,9 +49,7 @@ func GetImageList(cli dc.IDockerClient) ([]ts.ImageBaseInfo, error) {
 	return imgList, nil
 }
 
-func GetRawImageList(cli dc.IDockerClient) ([]image.Summary, error) {
-	ctx := context.Background()
-
+func GetRawImageList(ctx context.Context, cli dc.IDockerClient) ([]image.Summary, error) {
 	images, err := cli.ImageList(ctx, image.ListOptions{All: true, ContainerCount: true})
 	if err != nil {
 		return nil, err
@@ -60,8 +58,8 @@ func GetRawImageList(cli dc.IDockerClient) ([]image.Summary, error) {
 	return images, nil
 }
 
-func GetImageIDFromTag(cli dc.IDockerClient, tag string) (string, error) {
-	images, err := GetRawImageList(cli)
+func GetImageIDFromTag(ctx context.Context, cli dc.IDockerClient, tag string) (string, error) {
+	images, err := GetRawImageList(ctx, cli)
 	imageID := ""
 	if err != nil {
 		return imageID, err
@@ -79,8 +77,8 @@ func GetImageIDFromTag(cli dc.IDockerClient, tag string) (string, error) {
 	return imageID, nil
 }
 
-func GetImageListIDs(cli dc.IDockerClient) ([]string, error) {
-	images, err := GetRawImageList(cli)
+func GetImageListIDs(ctx context.Context, cli dc.IDockerClient) ([]string, error) {
+	images, err := GetRawImageList(ctx, cli)
 	if err != nil {
 		return nil, err
 	}
@@ -140,9 +138,7 @@ func RemoveImageByID(ctx context.Context, cli dc.IDockerClient, imageID string, 
 	return nil
 }
 
-func BuildImageNew(cli dc.IDockerClient, path string, tags []string, logCh chan string) (string, error) {
-	ctx := context.Background()
-
+func BuildImageNew(ctx context.Context, cli dc.IDockerClient, path string, tags []string, logCh chan string) (string, error) {
 	if len(tags) < 1 {
 		return "", ts.ErrEmptyTags
 	}
@@ -170,13 +166,11 @@ func BuildImageNew(cli dc.IDockerClient, path string, tags []string, logCh chan 
 		return "", fmt.Errorf("build failed: %s", err.Error())
 	}
 
-	return GetImageIDFromTag(cli, tags[0])
+	return GetImageIDFromTag(ctx, cli, tags[0])
 }
 
 // ? Perhaps archiving should be made into a separate function (ITarArchiver)
-func BuildImage(cli dc.IDockerClient, tarArchiver ITarArchiver, path string, tags []string) (string, error) {
-	ctx := context.Background()
-
+func BuildImage(ctx context.Context, cli dc.IDockerClient, tarArchiver ITarArchiver, path string, tags []string) (string, error) {
 	if len(tags) < 1 {
 		return "", ts.ErrEmptyTags
 	}
@@ -200,7 +194,7 @@ func BuildImage(cli dc.IDockerClient, tarArchiver ITarArchiver, path string, tag
 	defer out.Body.Close()
 	io.Copy(os.Stdout, out.Body)
 
-	return GetImageIDFromTag(cli, tags[0])
+	return GetImageIDFromTag(ctx, cli, tags[0])
 }
 
 // RemoveIntermediateImages get a list of id images to be deleted
