@@ -101,6 +101,7 @@ func RemoveImageByTag(ctx context.Context, cli dc.IDockerClient, imageTag string
 	for _, img := range images {
 		for _, tag := range img.RepoTags {
 			if tag == imageTag {
+				imageTag = img.ID
 				found = true
 				break
 			}
@@ -123,6 +124,18 @@ func RemoveImageByTag(ctx context.Context, cli dc.IDockerClient, imageTag string
 	}
 
 	log.Printf("image %q removed\n", imageTag)
+
+	return nil
+}
+
+func RemoveImageByID(ctx context.Context, cli dc.IDockerClient, imageID string, force bool) error {
+	_, err := cli.ImageRemove(ctx, imageID, image.RemoveOptions{
+		Force:         force,
+		PruneChildren: true,
+	})
+	if err != nil {
+		return fmt.Errorf("cannot remove image: %s", err.Error())
+	}
 
 	return nil
 }

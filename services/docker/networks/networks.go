@@ -2,6 +2,7 @@ package networks
 
 import (
 	"context"
+
 	"github.com/Szent7/medovukha-core/ipc/types"
 
 	dc "github.com/Szent7/medovukha-core/services/docker"
@@ -12,7 +13,7 @@ import (
 func GetNetworkList(cli dc.IDockerClient) ([]types.NetworkBaseInfo, error) {
 	ctx := context.Background()
 
-	networks, err := cli.NetworkList(ctx, network.ListOptions{})
+	networks, err := GetNetworkRawList(ctx, cli)
 	if err != nil {
 		return nil, err
 	}
@@ -40,4 +41,25 @@ func GetNetworkList(cli dc.IDockerClient) ([]types.NetworkBaseInfo, error) {
 	}
 
 	return netList, nil
+}
+
+func IsNetworkUsed(ctx context.Context, cli dc.IDockerClient, networkID string) (bool, error) {
+	network, err := GetNetwork(ctx, cli, networkID)
+	if err != nil {
+		return false, err
+	}
+
+	return len(network.Containers) != 0, nil
+}
+
+func GetNetworkRawList(ctx context.Context, cli dc.IDockerClient) ([]network.Summary, error) {
+	return cli.NetworkList(ctx, network.ListOptions{})
+}
+
+func GetNetwork(ctx context.Context, cli dc.IDockerClient, networkID string) (network.Summary, error) {
+	return cli.NetworkInspect(ctx, networkID, network.InspectOptions{Verbose: true})
+}
+
+func RemoveNetworkByID(ctx context.Context, cli dc.IDockerClient, networkID string) error {
+	return cli.NetworkRemove(ctx, networkID)
 }

@@ -45,9 +45,13 @@ type IDockerClient interface {
 
 	//Networks
 	NetworkList(ctx context.Context, options network.ListOptions) ([]network.Summary, error)
+	NetworkInspect(ctx context.Context, networkID string, options network.InspectOptions) (network.Inspect, error)
+	NetworkRemove(ctx context.Context, networkID string) error
 
 	//Volumes
 	VolumeList(ctx context.Context, options volume.ListOptions) (volume.ListResponse, error)
+	VolumeInspect(ctx context.Context, volumeID string) (volume.Volume, error)
+	VolumeRemove(ctx context.Context, volumeID string, force bool) error
 
 	//Events
 	Events(ctx context.Context, options events.ListOptions) (<-chan events.Message, <-chan error)

@@ -92,10 +92,30 @@ func (m *MockDockerClient) NetworkList(ctx context.Context, options network.List
 	return args.Get(0).([]network.Summary), args.Error(1)
 }
 
+func (m *MockDockerClient) NetworkInspect(ctx context.Context, networkID string, options network.InspectOptions) (network.Inspect, error) {
+	args := m.Called(ctx, networkID, options)
+	return args.Get(0).(network.Inspect), args.Error(1)
+}
+
+func (m *MockDockerClient) NetworkRemove(ctx context.Context, networkID string) error {
+	args := m.Called(ctx, networkID)
+	return args.Error(0)
+}
+
 // Volumes
 func (m *MockDockerClient) VolumeList(ctx context.Context, options volume.ListOptions) (volume.ListResponse, error) {
 	args := m.Called(ctx, options)
 	return args.Get(0).(volume.ListResponse), args.Error(1)
+}
+
+func (m *MockDockerClient) VolumeInspect(ctx context.Context, volumeID string) (volume.Volume, error) {
+	args := m.Called(ctx, volumeID)
+	return args.Get(0).(volume.Volume), args.Error(1)
+}
+
+func (m *MockDockerClient) VolumeRemove(ctx context.Context, volumeID string, force bool) error {
+	args := m.Called(ctx, volumeID, force)
+	return args.Error(0)
 }
 
 // Events

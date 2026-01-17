@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"os"
 	"os/exec"
 	"strings"
 
@@ -17,13 +16,14 @@ import (
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
+	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/go-connections/nat"
 )
 
 func GetContainerBaseInfoList(cli dc.IDockerClient) ([]types.ContainerBaseInfo, error) {
 	ctx := context.Background()
 
-	containers, err := cli.ContainerList(ctx, container.ListOptions{All: true})
+	containers, err := GetContainerRawList(ctx, cli)
 	if err != nil {
 		return nil, err
 	}
@@ -48,14 +48,48 @@ func GetContainerBaseInfoList(cli dc.IDockerClient) ([]types.ContainerBaseInfo, 
 				conList[i].Ports[j].Type = IPitem.Type
 			}
 		}
-		if check, err := CheckIsMedovukhaId(conList[i].Id); err != nil {
-			return nil, err
-		} else {
-			conList[i].IsMedovukha = check
-		}
 	}
 
 	return conList, nil
+}
+
+func IsImageUsed(ctx context.Context, cli dc.IDockerClient, imageID string) (bool, error) {
+	containers, err := GetContainerRawListByImage(ctx, cli, imageID)
+	if err != nil {
+		return false, err
+	}
+
+	return len(containers) != 0, nil
+}
+
+func IsVolumeUsed(ctx context.Context, cli dc.IDockerClient, volumeName string) (bool, error) {
+	containers, err := GetContainerRawList(ctx, cli)
+	if err != nil {
+		return false, err
+	}
+
+	if len(containers) != 0 {
+		for _, con := range containers {
+			for _, m := range con.Mounts {
+				if m.Type == mount.TypeVolume && m.Name == volumeName {
+					return true, nil
+				}
+			}
+		}
+	}
+
+	return false, nil
+}
+
+func GetContainerRawList(ctx context.Context, cli dc.IDockerClient) ([]container.Summary, error) {
+	return cli.ContainerList(ctx, container.ListOptions{All: true})
+}
+
+func GetContainerRawListByImage(ctx context.Context, cli dc.IDockerClient, imageID string) ([]container.Summary, error) {
+	f := filters.NewArgs()
+	f.Add("ancestor", imageID)
+
+	return cli.ContainerList(ctx, container.ListOptions{All: true, Filters: f})
 }
 
 func ExecDockerRun(dockerRunCommand string, logCh chan string) error {
@@ -333,18 +367,4 @@ func RemoveContainerByImage(ctx context.Context, cli dc.IDockerClient, imageTag 
 	}
 
 	return nil
-}
-
-func CheckIsMedovukhaId(id string) (bool, error) {
-	hostname, err := os.Hostname()
-	if err != nil {
-		return false, err
-	}
-	//the hostname is part of the full container ID
-	contains := strings.Contains(id, hostname)
-	i := strings.Index(id, hostname)
-	if contains && i == 0 {
-		return true, nil
-	}
-	return false, nil
 }

@@ -30,18 +30,21 @@ service DockerService {
   //
   //
   rpc GetImageList(GetImageListRequest) returns (GetImageListResponse);
+  rpc RemoveImage(RemoveImageRequest) returns (RemoveImageResponse);
   //
   //
   //networks
   //
   //
   rpc GetNetworkList(GetNetworkListRequest) returns (GetNetworkListResponse);
+  rpc RemoveNetwork(RemoveNetworkRequest) returns (RemoveNetworkResponse);
   //
   //
   //volumes
   //
   //
   rpc GetVolumeList(GetVolumeListRequest) returns (GetVolumeListResponse);
+  rpc RemoveVolume(RemoveVolumeRequest) returns (RemoveVolumeResponse);
   //
   //
   //deploy
@@ -154,6 +157,16 @@ message ImageBaseInfo {
   repeated string tags = 2;
   int64 size = 3;
   int64 created = 4;
+  bool is_used = 5;
+}
+
+message RemoveImageRequest {
+  string id = 1;
+  bool force = 2;
+}
+
+message RemoveImageResponse {
+  string message = 1;
 }
 
 //
@@ -177,6 +190,15 @@ message NetworkBaseInfo {
   repeated string gateway = 7;
   bool attachable = 8;
   bool docker_network = 9;
+  bool is_used = 10;
+}
+
+message RemoveNetworkRequest {
+  string id = 1;
+}
+
+message RemoveNetworkResponse {
+  string message = 1;
 }
 
 //
@@ -195,6 +217,16 @@ message VolumeBaseInfo {
   string driver = 2;
   string mountpoint = 3;
   string created = 4;
+  bool is_used = 5;
+}
+
+message RemoveVolumeRequest {
+  string id = 1;
+  bool force = 2;
+}
+
+message RemoveVolumeResponse {
+  string message = 1;
 }
 
 //

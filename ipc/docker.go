@@ -2,14 +2,13 @@ package ipc
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"sync"
 
 	"github.com/docker/docker/client"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
-
-	"fmt"
 
 	dockerpb "github.com/Szent7/medovukha-core/proto/docker/v1"
 
@@ -84,7 +83,7 @@ func (d *DockerService) PauseContainerByID(ctx context.Context, req *dockerpb.Pa
 	}
 
 	if err := containers.PauseContainerByID(d.cli, req.Id); err != nil {
-		fmt.Printf("PauseContainerByID error: %s\n", err.Error())
+		log.Printf("PauseContainerByID error: %s\n", err.Error())
 		return nil, fmt.Errorf("PauseContainerByID error: %s", err.Error())
 	}
 
@@ -97,7 +96,7 @@ func (d *DockerService) UnpauseContainerByID(ctx context.Context, req *dockerpb.
 	}
 
 	if err := containers.UnpauseContainerByID(d.cli, req.Id); err != nil {
-		fmt.Printf("UnpauseContainerByID error: %s\n", err.Error())
+		log.Printf("UnpauseContainerByID error: %s\n", err.Error())
 		return nil, fmt.Errorf("UnpauseContainerByID error: %s", err.Error())
 	}
 
@@ -110,7 +109,7 @@ func (d *DockerService) KillContainerByID(ctx context.Context, req *dockerpb.Kil
 	}
 
 	if err := containers.KillContainerByID(d.cli, req.Id); err != nil {
-		fmt.Printf("KillContainerByID error: %s\n", err.Error())
+		log.Printf("KillContainerByID error: %s\n", err.Error())
 		return nil, fmt.Errorf("KillContainerByID error: %s", err.Error())
 	}
 
@@ -123,7 +122,7 @@ func (d *DockerService) StartContainerByID(ctx context.Context, req *dockerpb.St
 	}
 
 	if err := containers.StartContainerByID(d.cli, req.Id); err != nil {
-		fmt.Printf("StartContainerByID error: %s\n", err.Error())
+		log.Printf("StartContainerByID error: %s\n", err.Error())
 		return nil, fmt.Errorf("StartContainerByID error: %s", err.Error())
 	}
 
@@ -136,7 +135,7 @@ func (d *DockerService) StopContainerByID(ctx context.Context, req *dockerpb.Sto
 	}
 
 	if err := containers.StopContainerByID(d.cli, req.Id); err != nil {
-		fmt.Printf("StopContainerByID error: %s\n", err.Error())
+		log.Printf("StopContainerByID error: %s\n", err.Error())
 		return nil, fmt.Errorf("StopContainerByID error: %s", err.Error())
 	}
 
@@ -149,7 +148,7 @@ func (d *DockerService) RestartContainerByID(ctx context.Context, req *dockerpb.
 	}
 
 	if err := containers.RestartContainerByID(d.cli, req.Id); err != nil {
-		fmt.Printf("RestartContainerByID error: %s\n", err.Error())
+		log.Printf("RestartContainerByID error: %s\n", err.Error())
 		return nil, fmt.Errorf("RestartContainerByID error: %s", err.Error())
 	}
 
@@ -162,7 +161,7 @@ func (d *DockerService) RemoveContainerByID(ctx context.Context, req *dockerpb.R
 	}
 
 	if err := containers.RemoveContainerByID(d.cli, req.Id); err != nil {
-		fmt.Printf("RemoveContainerByID error: %s\n", err.Error())
+		log.Printf("RemoveContainerByID error: %s\n", err.Error())
 		return nil, fmt.Errorf("RemoveContainerByID error: %s", err.Error())
 	}
 
@@ -173,35 +172,76 @@ func (d *DockerService) RemoveContainerByID(ctx context.Context, req *dockerpb.R
 func (d *DockerService) GetImageList(ctx context.Context, req *dockerpb.GetImageListRequest) (*dockerpb.GetImageListResponse, error) {
 	imageList, err := images.GetImageList(d.cli)
 	if err != nil {
-		fmt.Printf("GetImageList error: %s\n", err.Error())
+		log.Printf("GetImageList error: %s\n", err.Error())
 		return nil, fmt.Errorf("GetImageList error: %s", err.Error())
 	}
 
 	var serializedList dockerpb.GetImageListResponse
 	serializedList.Items = make([]*dockerpb.ImageBaseInfo, len(imageList))
 	for i := range imageList {
+		used, err := containers.IsImageUsed(ctx, d.cli, imageList[i].Id)
+		if err != nil {
+			log.Printf("GetImageList error: %s\n", err.Error())
+			return nil, fmt.Errorf("GetImageList error: %s", err.Error())
+		}
 		serializedList.Items[i] = &dockerpb.ImageBaseInfo{
 			Id:      imageList[i].Id,
 			Tags:    imageList[i].Tags,
 			Size:    imageList[i].Size,
 			Created: imageList[i].Created,
+			IsUsed:  used,
 		}
 	}
 
 	return &serializedList, nil
 }
 
+func (d *DockerService) RemoveImage(ctx context.Context, req *dockerpb.RemoveImageRequest) (*dockerpb.RemoveImageResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("RemoveImage error: nil request")
+	}
+
+	if req.Force {
+		if err := images.RemoveImageByID(ctx, d.cli, req.Id, req.Force); err != nil {
+			log.Printf("RemoveImage error: %s\n", err.Error())
+			return nil, fmt.Errorf("RemoveImage error: %s", err.Error())
+		}
+	} else {
+		used, err := containers.IsImageUsed(ctx, d.cli, req.Id)
+		if err != nil {
+			log.Printf("RemoveImage error: %s\n", err.Error())
+			return nil, fmt.Errorf("RemoveImage error: %s", err.Error())
+		}
+
+		if used {
+			return nil, fmt.Errorf("image is in use")
+		}
+
+		if err := images.RemoveImageByID(ctx, d.cli, req.Id, false); err != nil {
+			log.Printf("RemoveImage error: %s\n", err.Error())
+			return nil, fmt.Errorf("RemoveImage error: %s", err.Error())
+		}
+	}
+
+	return &dockerpb.RemoveImageResponse{Message: "Removed: " + req.Id}, nil
+}
+
 // Networks
 func (d *DockerService) GetNetworkList(ctx context.Context, req *dockerpb.GetNetworkListRequest) (*dockerpb.GetNetworkListResponse, error) {
 	networkList, err := networks.GetNetworkList(d.cli)
 	if err != nil {
-		fmt.Printf("GetNetworkList error: %s\n", err.Error())
+		log.Printf("GetNetworkList error: %s\n", err.Error())
 		return nil, fmt.Errorf("GetNetworkList error: %s", err.Error())
 	}
 
 	var serializedList dockerpb.GetNetworkListResponse
 	serializedList.Items = make([]*dockerpb.NetworkBaseInfo, len(networkList))
 	for i := range networkList {
+		used, err := networks.IsNetworkUsed(ctx, d.cli, networkList[i].Id)
+		if err != nil {
+			log.Printf("GetNetworkList error: %s\n", err.Error())
+			return nil, fmt.Errorf("GetNetworkList error: %s", err.Error())
+		}
 		serializedList.Items[i] = &dockerpb.NetworkBaseInfo{
 			Name:          networkList[i].Name,
 			Id:            networkList[i].Id,
@@ -212,32 +252,92 @@ func (d *DockerService) GetNetworkList(ctx context.Context, req *dockerpb.GetNet
 			Gateway:       networkList[i].Gateway,
 			Attachable:    networkList[i].Attachable,
 			DockerNetwork: networkList[i].DockerNetwork,
+			IsUsed:        used,
 		}
 	}
 
 	return &serializedList, nil
 }
 
+func (d *DockerService) RemoveNetwork(ctx context.Context, req *dockerpb.RemoveNetworkRequest) (*dockerpb.RemoveNetworkResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("RemoveNetwork error: nil request")
+	}
+
+	used, err := networks.IsNetworkUsed(ctx, d.cli, req.Id)
+	if err != nil {
+		log.Printf("RemoveNetwork error: %s\n", err.Error())
+		return nil, fmt.Errorf("RemoveNetwork error: %s", err.Error())
+	}
+
+	if used {
+		return nil, fmt.Errorf("network is in use")
+	}
+
+	if err := networks.RemoveNetworkByID(ctx, d.cli, req.Id); err != nil {
+		log.Printf("RemoveNetwork error: %s\n", err.Error())
+		return nil, fmt.Errorf("RemoveNetwork error: %s", err.Error())
+	}
+
+	return &dockerpb.RemoveNetworkResponse{Message: "Removed: " + req.Id}, nil
+}
+
 // Volumes
 func (d *DockerService) GetVolumeList(ctx context.Context, req *dockerpb.GetVolumeListRequest) (*dockerpb.GetVolumeListResponse, error) {
 	volumeList, err := volumes.GetVolumeList(d.cli)
 	if err != nil {
-		fmt.Printf("GetVolumeList error: %s\n", err.Error())
+		log.Printf("GetVolumeList error: %s\n", err.Error())
 		return nil, fmt.Errorf("GetVolumeList error: %s", err.Error())
 	}
 
 	var serializedList dockerpb.GetVolumeListResponse
 	serializedList.Items = make([]*dockerpb.VolumeBaseInfo, len(volumeList))
 	for i := range volumeList {
+		used, err := containers.IsVolumeUsed(ctx, d.cli, volumeList[i].Name)
+		if err != nil {
+			log.Printf("GetVolumeList error: %s\n", err.Error())
+			return nil, fmt.Errorf("GetVolumeList error: %s", err.Error())
+		}
 		serializedList.Items[i] = &dockerpb.VolumeBaseInfo{
 			Name:       volumeList[i].Name,
 			Driver:     volumeList[i].Driver,
 			Mountpoint: volumeList[i].Mountpoint,
 			Created:    volumeList[i].Created,
+			IsUsed:     used,
 		}
 	}
 
 	return &serializedList, nil
+}
+
+func (d *DockerService) RemoveVolume(ctx context.Context, req *dockerpb.RemoveVolumeRequest) (*dockerpb.RemoveVolumeResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("RemoveVolume error: nil request")
+	}
+
+	if req.Force {
+		if err := volumes.RemoveVolumeByID(ctx, d.cli, req.Id, req.Force); err != nil {
+			log.Printf("RemoveVolume error: %s\n", err.Error())
+			return nil, fmt.Errorf("RemoveVolume error: %s", err.Error())
+		}
+	} else {
+		used, err := containers.IsVolumeUsed(ctx, d.cli, req.Id)
+		if err != nil {
+			log.Printf("RemoveVolume error: %s\n", err.Error())
+			return nil, fmt.Errorf("RemoveVolume error: %s", err.Error())
+		}
+
+		if used {
+			return nil, fmt.Errorf("volume is in use")
+		}
+
+		if err := volumes.RemoveVolumeByID(ctx, d.cli, req.Id, false); err != nil {
+			log.Printf("RemoveVolume error: %s\n", err.Error())
+			return nil, fmt.Errorf("RemoveVolume error: %s", err.Error())
+		}
+	}
+
+	return &dockerpb.RemoveVolumeResponse{Message: "Removed: " + req.Id}, nil
 }
 
 // Deploy
@@ -298,19 +398,19 @@ func (d *DockerService) GetContainerState(req *dockerpb.GetContainerStateRequest
 	errCh := make(chan error)
 	go containers.EventStream(ctx, d.cli, eventCh, errCh)
 
-	fmt.Println("Start gRPC Server-Side streaming")
+	log.Println("Start gRPC Server-Side streaming")
 
 	for {
 		select {
 		case <-ctx.Done():
 			{
-				fmt.Println("Stop gRPC Server-Side streaming")
+				log.Println("Stop gRPC Server-Side streaming")
 				return nil
 			}
 		case err := <-errCh:
 			{
 				if err != nil {
-					fmt.Println("Stop gRPC Server-Side streaming")
+					log.Println("Stop gRPC Server-Side streaming")
 					return err
 				}
 			}
@@ -327,7 +427,7 @@ func (d *DockerService) GetContainerState(req *dockerpb.GetContainerStateRequest
 				}
 				if err := stream.Send(resp); err != nil {
 					log.Printf("Send error: %s", err.Error())
-					fmt.Println("Stop gRPC Server-Side streaming")
+					log.Println("Stop gRPC Server-Side streaming")
 					return err
 				}
 			}
@@ -362,20 +462,20 @@ func (d *DockerService) startGitBuild(req *dockerpb.CreateFromGitRequest, buildI
 	tempDir, err := os.MkdirTemp("", "docker-repo")
 	if err != nil {
 		common.SendLog(logCh, err.Error())
-		fmt.Println(err.Error())
+		log.Println(err.Error())
 		return
 	}
 
 	createdDirLog := "Created tempDir: " + tempDir
 	deletedDirLog := "Deleted tempDir: " + tempDir
 	common.SendLog(logCh, createdDirLog)
-	fmt.Println(createdDirLog)
+	log.Println(createdDirLog)
 	defer os.RemoveAll(tempDir)
-	defer fmt.Println(deletedDirLog)
+	defer log.Println(deletedDirLog)
 
 	if err := git.CloneRepo(&git.RepoCloner{}, req.Url, tempDir); err != nil {
 		common.SendLog(logCh, err.Error())
-		fmt.Println(err.Error())
+		log.Println(err.Error())
 		return
 	}
 	//
@@ -390,19 +490,19 @@ func (d *DockerService) startGitBuild(req *dockerpb.CreateFromGitRequest, buildI
 		// If Dockerfile doesn`t exist, throw error
 		if !common.FileExists(dockerfileDir) {
 			common.SendLog(logCh, err.Error())
-			fmt.Println(err.Error())
+			log.Println(err.Error())
 			return
 		}
 	} else {
 		// If Dockerfile specified in the request, rewrite/create new Dockerfile
 		if err := common.CreateFile(dockerfileDir, []byte(req.Dockerfile)); err != nil {
 			common.SendLog(logCh, err.Error())
-			fmt.Println(err.Error())
+			log.Println(err.Error())
 			return
 		} else {
 			dockerfileRedefined := "Dockerfile redefined"
 			common.SendLog(logCh, dockerfileRedefined)
-			fmt.Println(dockerfileRedefined)
+			log.Println(dockerfileRedefined)
 		}
 	}
 	//
@@ -413,7 +513,7 @@ func (d *DockerService) startGitBuild(req *dockerpb.CreateFromGitRequest, buildI
 	repo, err := common.RepoFromURL(req.Url)
 	if err != nil {
 		common.SendLog(logCh, err.Error())
-		fmt.Println(err.Error())
+		log.Println(err.Error())
 		return
 	}
 	tags := []string{repo + ":latest"} //args.URL
@@ -424,7 +524,7 @@ func (d *DockerService) startGitBuild(req *dockerpb.CreateFromGitRequest, buildI
 	//
 	if err := containers.RemoveContainerByImage(ctx, d.cli, tags[0]); err != nil {
 		common.SendLog(logCh, err.Error())
-		fmt.Println(err.Error())
+		log.Println(err.Error())
 		return
 	}
 	//
@@ -434,7 +534,7 @@ func (d *DockerService) startGitBuild(req *dockerpb.CreateFromGitRequest, buildI
 	//
 	if err := images.RemoveImageByTag(ctx, d.cli, tags[0]); err != nil {
 		common.SendLog(logCh, err.Error())
-		fmt.Println(err.Error())
+		log.Println(err.Error())
 		return
 	}
 	//
@@ -445,7 +545,7 @@ func (d *DockerService) startGitBuild(req *dockerpb.CreateFromGitRequest, buildI
 	newImageId, err := images.BuildImageNew(d.cli, tempDir, tags, logCh)
 	if err != nil {
 		common.SendLog(logCh, err.Error())
-		fmt.Println(err.Error())
+		log.Println(err.Error())
 		return
 	}
 	//
@@ -459,13 +559,13 @@ func (d *DockerService) startGitBuild(req *dockerpb.CreateFromGitRequest, buildI
 	_, err = d.cli.ImagesPrune(ctx, pruneFilters)
 	if err != nil {
 		common.SendLog(logCh, err.Error())
-		fmt.Println(err.Error())
+		log.Println(err.Error())
 		return
 	}
 	_, err = d.cli.BuildCachePrune(ctx, build.CachePruneOptions{All: true})
 	if err != nil {
 		common.SendLog(logCh, err.Error())
-		fmt.Println(err.Error())
+		log.Println(err.Error())
 		return
 	}
 	//
@@ -479,19 +579,19 @@ func (d *DockerService) startGitBuild(req *dockerpb.CreateFromGitRequest, buildI
 			// DockerRun is not specified in the request, check DockerCompose in the directory
 			if !common.FileExists(dockercomposeDir) {
 				common.SendLog(logCh, "created but not launched: "+newImageId)
-				fmt.Println("Created image, but not command to launch container")
+				log.Println("Created image, but not command to launch container")
 				return
 			} else {
 				if err := containers.ExecDockerComposeUp(dockercomposeDir, logCh); err != nil {
 					common.SendLog(logCh, "the image was created, but an error occurred when starting the container (dockerCompose): "+newImageId)
-					fmt.Println("Created image, but container not launched")
+					log.Println("Created image, but container not launched")
 					return
 				}
 			}
 		} else {
 			if err := containers.ExecDockerRun(req.DockerRun, logCh); err != nil {
 				common.SendLog(logCh, "the image was created, but an error occurred when starting the container (dockerRun): "+newImageId)
-				fmt.Println("Created image, but container not launched")
+				log.Println("Created image, but container not launched")
 				return
 			}
 		}
@@ -499,18 +599,18 @@ func (d *DockerService) startGitBuild(req *dockerpb.CreateFromGitRequest, buildI
 		// If Dockerfile specified in the request, rewrite/create new Dockerfile
 		if err := common.CreateFile(dockercomposeDir, []byte(req.DockerCompose)); err != nil {
 			common.SendLog(logCh, err.Error())
-			fmt.Println(err.Error())
+			log.Println(err.Error())
 			return
 		} else {
-			fmt.Println("DockerCompose redefined")
+			log.Println("DockerCompose redefined")
 			if err := containers.ExecDockerComposeUp(dockercomposeDir, logCh); err != nil {
 				common.SendLog(logCh, "the image was created, but an error occurred when starting the container (dockerCompose): "+newImageId)
-				fmt.Println("Created image, but container not launched")
+				log.Println("Created image, but container not launched")
 				return
 			}
 		}
 	}
 
 	common.SendLog(logCh, "created and launched: "+newImageId)
-	fmt.Println("Created image and launched container")
+	log.Println("Created image and launched container")
 }

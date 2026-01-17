@@ -1,5 +1,7 @@
 version: "v2"
-root: proto
+
+modules:
+  - path: proto
 lint:
   use:
-    - DEFAULT
+    - STANDARD

@@ -2,6 +2,7 @@ package volumes
 
 import (
 	"context"
+
 	"github.com/Szent7/medovukha-core/ipc/types"
 
 	dc "github.com/Szent7/medovukha-core/services/docker"
@@ -12,7 +13,7 @@ import (
 func GetVolumeList(cli dc.IDockerClient) ([]types.VolumeBaseInfo, error) {
 	ctx := context.Background()
 
-	volumes, err := cli.VolumeList(ctx, volume.ListOptions{})
+	volumes, err := GetVolumeRawList(ctx, cli)
 	if err != nil {
 		return nil, err
 	}
@@ -28,4 +29,16 @@ func GetVolumeList(cli dc.IDockerClient) ([]types.VolumeBaseInfo, error) {
 	}
 
 	return volList, nil
+}
+
+func GetVolumeRawList(ctx context.Context, cli dc.IDockerClient) (volume.ListResponse, error) {
+	return cli.VolumeList(ctx, volume.ListOptions{})
+}
+
+func GetVolume(ctx context.Context, cli dc.IDockerClient, volumeID string) (volume.Volume, error) {
+	return cli.VolumeInspect(ctx, volumeID)
+}
+
+func RemoveVolumeByID(ctx context.Context, cli dc.IDockerClient, volumeID string, force bool) error {
+	return cli.VolumeRemove(ctx, volumeID, force)
 }

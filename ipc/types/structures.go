@@ -11,13 +11,12 @@ type BaseID struct {
 }
 
 type ContainerBaseInfo struct {
-	Id          string   `json:"id"`
-	Names       []string `json:"names"`
-	ImageName   string   `json:"image"`
-	Ports       []Port   `json:"ports"`
-	Created     int64    `json:"created"`
-	State       string   `json:"state"`
-	IsMedovukha bool     `json:"isMedovukha"`
+	Id        string   `json:"id"`
+	Names     []string `json:"names"`
+	ImageName string   `json:"image"`
+	Ports     []Port   `json:"ports"`
+	Created   int64    `json:"created"`
+	State     string   `json:"state"`
 }
 
 type Port struct {
