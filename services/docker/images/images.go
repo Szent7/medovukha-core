@@ -49,6 +49,24 @@ func GetImageList(ctx context.Context, cli dc.IDockerClient) ([]ts.ImageBaseInfo
 	return imgList, nil
 }
 
+func GetImage(ctx context.Context, cli dc.IDockerClient, imageID string) (ts.ImageBaseInfo, error) {
+	imageInspect, err := cli.ImageInspect(ctx, imageID)
+	if err != nil {
+		return ts.ImageBaseInfo{}, err
+	}
+
+	formattedTime, _ := common.StrToUNIXTime(imageInspect.Created)
+
+	imgSummary := ts.ImageBaseInfo{
+		Id:      imageInspect.ID,
+		Tags:    imageInspect.RepoTags,
+		Size:    imageInspect.Size,
+		Created: formattedTime,
+	}
+
+	return imgSummary, nil
+}
+
 func GetRawImageList(ctx context.Context, cli dc.IDockerClient) ([]image.Summary, error) {
 	images, err := cli.ImageList(ctx, image.ListOptions{All: true, ContainerCount: true})
 	if err != nil {

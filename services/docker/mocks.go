@@ -4,12 +4,13 @@ import (
 	"context"
 	"io"
 
-	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/build"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/api/types/volume"
+	"github.com/docker/docker/client"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/mock"
 )
@@ -19,9 +20,14 @@ type MockDockerClient struct {
 }
 
 // Containers
-func (m *MockDockerClient) ContainerList(ctx context.Context, options container.ListOptions) ([]types.Container, error) {
+func (m *MockDockerClient) ContainerInspect(ctx context.Context, containerID string) (container.InspectResponse, error) {
+	args := m.Called(ctx, containerID)
+	return args.Get(0).(container.InspectResponse), args.Error(1)
+}
+
+func (m *MockDockerClient) ContainerList(ctx context.Context, options container.ListOptions) ([]container.Summary, error) {
 	args := m.Called(ctx, options)
-	return args.Get(0).([]types.Container), args.Error(1)
+	return args.Get(0).([]container.Summary), args.Error(1)
 }
 
 func (m *MockDockerClient) ContainerPause(ctx context.Context, containerID string) error {
@@ -66,6 +72,11 @@ func (m *MockDockerClient) ContainerStop(ctx context.Context, containerID string
 }
 
 // Images
+func (m *MockDockerClient) ImageInspect(ctx context.Context, imageID string, inspectOpts ...client.ImageInspectOption) (image.InspectResponse, error) {
+	args := m.Called(ctx, imageID, inspectOpts)
+	return args.Get(0).(image.InspectResponse), args.Error(1)
+}
+
 func (m *MockDockerClient) ImagePull(ctx context.Context, refStr string, options image.PullOptions) (io.ReadCloser, error) {
 	args := m.Called(ctx, refStr, options)
 	return args.Get(0).(io.ReadCloser), args.Error(1)
@@ -81,9 +92,9 @@ func (m *MockDockerClient) ImageRemove(ctx context.Context, imageID string, opti
 	return args.Get(0).([]image.DeleteResponse), args.Error(1)
 }
 
-func (m *MockDockerClient) ImageBuild(ctx context.Context, buildContext io.Reader, options types.ImageBuildOptions) (types.ImageBuildResponse, error) {
+func (m *MockDockerClient) ImageBuild(ctx context.Context, buildContext io.Reader, options build.ImageBuildOptions) (build.ImageBuildResponse, error) {
 	args := m.Called(ctx, buildContext, options)
-	return args.Get(0).(types.ImageBuildResponse), args.Error(1)
+	return args.Get(0).(build.ImageBuildResponse), args.Error(1)
 }
 
 // Networks

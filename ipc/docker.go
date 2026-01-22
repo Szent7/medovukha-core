@@ -77,6 +77,27 @@ func (d *DockerService) GetContainerList(ctx context.Context, req *dockerpb.GetC
 	return &serializedList, nil
 }
 
+func (d *DockerService) GetContainerByID(ctx context.Context, req *dockerpb.GetContainerByIDRequest) (*dockerpb.GetContainerByIDResponse, error) {
+	container, err := containers.GetContainer(ctx, d.cli, req.Id)
+	if err != nil {
+		fmt.Printf("GetContainer error: %s\n", err.Error())
+		return nil, err
+	}
+
+	serializedContainer := dockerpb.GetContainerByIDResponse{
+		Item: &dockerpb.ContainerBaseInfo{
+			Id:        container.Id,
+			Names:     container.Names,
+			ImageName: container.ImageName,
+			Ports:     common.ConvertPorts(container.Ports),
+			Created:   container.Created,
+			State:     container.State,
+		},
+	}
+
+	return &serializedContainer, nil
+}
+
 func (d *DockerService) PauseContainerByID(ctx context.Context, req *dockerpb.PauseContainerByIDRequest) (*dockerpb.PauseContainerByIDResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("PauseContainerByID error: nil request")
@@ -196,6 +217,32 @@ func (d *DockerService) GetImageList(ctx context.Context, req *dockerpb.GetImage
 	return &serializedList, nil
 }
 
+func (d *DockerService) GetImageByID(ctx context.Context, req *dockerpb.GetImageByIDRequest) (*dockerpb.GetImageByIDResponse, error) {
+	image, err := images.GetImage(ctx, d.cli, req.Id)
+	if err != nil {
+		fmt.Printf("GetImage error: %s\n", err.Error())
+		return nil, err
+	}
+
+	used, err := containers.IsImageUsed(ctx, d.cli, req.Id)
+	if err != nil {
+		log.Printf("GetImageByID error: %s\n", err.Error())
+		return nil, fmt.Errorf("GetImageByID error: %s", err.Error())
+	}
+
+	serializedImage := dockerpb.GetImageByIDResponse{
+		Item: &dockerpb.ImageBaseInfo{
+			Id:      image.Id,
+			Tags:    image.Tags,
+			Size:    image.Size,
+			Created: image.Created,
+			IsUsed:  used,
+		},
+	}
+
+	return &serializedImage, nil
+}
+
 func (d *DockerService) RemoveImage(ctx context.Context, req *dockerpb.RemoveImageRequest) (*dockerpb.RemoveImageResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("RemoveImage error: nil request")
@@ -259,6 +306,37 @@ func (d *DockerService) GetNetworkList(ctx context.Context, req *dockerpb.GetNet
 	return &serializedList, nil
 }
 
+func (d *DockerService) GetNetworkByID(ctx context.Context, req *dockerpb.GetNetworkByIDRequest) (*dockerpb.GetNetworkByIDResponse, error) {
+	network, err := networks.GetNetwork(ctx, d.cli, req.Id)
+	if err != nil {
+		fmt.Printf("GetNetwork error: %s\n", err.Error())
+		return nil, err
+	}
+
+	used, err := networks.IsNetworkUsed(ctx, d.cli, req.Id)
+	if err != nil {
+		log.Printf("GetImageByID error: %s\n", err.Error())
+		return nil, fmt.Errorf("GetImageByID error: %s", err.Error())
+	}
+
+	serializedNetwork := dockerpb.GetNetworkByIDResponse{
+		Item: &dockerpb.NetworkBaseInfo{
+			Name:          network.Name,
+			Id:            network.Id,
+			Driver:        network.Driver,
+			EnableIpv6:    network.EnableIPv6,
+			IpamDriver:    network.IPAMDriver,
+			Subnet:        network.Subnet,
+			Gateway:       network.Gateway,
+			Attachable:    network.Attachable,
+			DockerNetwork: network.DockerNetwork,
+			IsUsed:        used,
+		},
+	}
+
+	return &serializedNetwork, nil
+}
+
 func (d *DockerService) RemoveNetwork(ctx context.Context, req *dockerpb.RemoveNetworkRequest) (*dockerpb.RemoveNetworkResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("RemoveNetwork error: nil request")
@@ -308,6 +386,32 @@ func (d *DockerService) GetVolumeList(ctx context.Context, req *dockerpb.GetVolu
 	}
 
 	return &serializedList, nil
+}
+
+func (d *DockerService) GetVolumeByID(ctx context.Context, req *dockerpb.GetVolumeByIDRequest) (*dockerpb.GetVolumeByIDResponse, error) {
+	volume, err := volumes.GetVolume(ctx, d.cli, req.Id)
+	if err != nil {
+		fmt.Printf("GetVolume error: %s\n", err.Error())
+		return nil, err
+	}
+
+	used, err := containers.IsVolumeUsed(ctx, d.cli, volume.Name)
+	if err != nil {
+		log.Printf("GetVolumeByID error: %s\n", err.Error())
+		return nil, fmt.Errorf("GetVolumeByID error: %s", err.Error())
+	}
+
+	serializedVolume := dockerpb.GetVolumeByIDResponse{
+		Item: &dockerpb.VolumeBaseInfo{
+			Name:       volume.Name,
+			Driver:     volume.Driver,
+			Mountpoint: volume.Mountpoint,
+			Created:    volume.Created,
+			IsUsed:     used,
+		},
+	}
+
+	return &serializedVolume, nil
 }
 
 func (d *DockerService) RemoveVolume(ctx context.Context, req *dockerpb.RemoveVolumeRequest) (*dockerpb.RemoveVolumeResponse, error) {
@@ -398,19 +502,19 @@ func (d *DockerService) GetContainerState(req *dockerpb.GetContainerStateRequest
 	errCh := make(chan error)
 	go containers.EventStream(ctx, d.cli, eventCh, errCh)
 
-	log.Println("Start gRPC Server-Side streaming")
+	// log.Println("Start gRPC Server-Side streaming")
 
 	for {
 		select {
 		case <-ctx.Done():
 			{
-				log.Println("Stop gRPC Server-Side streaming")
+				// log.Println("Stop gRPC Server-Side streaming")
 				return nil
 			}
 		case err := <-errCh:
 			{
 				if err != nil {
-					log.Println("Stop gRPC Server-Side streaming")
+					// log.Println("Stop gRPC Server-Side streaming")
 					return err
 				}
 			}
@@ -427,7 +531,139 @@ func (d *DockerService) GetContainerState(req *dockerpb.GetContainerStateRequest
 				}
 				if err := stream.Send(resp); err != nil {
 					log.Printf("Send error: %s", err.Error())
-					log.Println("Stop gRPC Server-Side streaming")
+					// log.Println("Stop gRPC Server-Side streaming")
+					return err
+				}
+			}
+		}
+	}
+}
+
+func (d *DockerService) GetImageState(req *dockerpb.GetImageStateRequest, stream grpc.ServerStreamingServer[dockerpb.GetImageStateResponse]) error {
+	ctx := stream.Context()
+
+	eventCh := make(chan events.Message)
+	errCh := make(chan error)
+	go images.EventStream(ctx, d.cli, eventCh, errCh)
+
+	// log.Println("Start gRPC Server-Side streaming")
+
+	for {
+		select {
+		case <-ctx.Done():
+			{
+				// log.Println("Stop gRPC Server-Side streaming")
+				return nil
+			}
+		case err := <-errCh:
+			{
+				if err != nil {
+					// log.Println("Stop gRPC Server-Side streaming")
+					return err
+				}
+			}
+		case event := <-eventCh:
+			{
+				// fmt.Println("New event in GetContainerState")
+				resp := &dockerpb.GetImageStateResponse{
+					Type:   string(event.Type),
+					Action: string(event.Action),
+					Actor: &dockerpb.Actor{
+						Id:         event.Actor.ID,
+						Attributes: event.Actor.Attributes,
+					},
+				}
+				if err := stream.Send(resp); err != nil {
+					log.Printf("Send error: %s", err.Error())
+					// log.Println("Stop gRPC Server-Side streaming")
+					return err
+				}
+			}
+		}
+	}
+}
+
+func (d *DockerService) GetNetworkState(req *dockerpb.GetNetworkStateRequest, stream grpc.ServerStreamingServer[dockerpb.GetNetworkStateResponse]) error {
+	ctx := stream.Context()
+
+	eventCh := make(chan events.Message)
+	errCh := make(chan error)
+	go networks.EventStream(ctx, d.cli, eventCh, errCh)
+
+	// log.Println("Start gRPC Server-Side streaming")
+
+	for {
+		select {
+		case <-ctx.Done():
+			{
+				// log.Println("Stop gRPC Server-Side streaming")
+				return nil
+			}
+		case err := <-errCh:
+			{
+				if err != nil {
+					// log.Println("Stop gRPC Server-Side streaming")
+					return err
+				}
+			}
+		case event := <-eventCh:
+			{
+				// fmt.Println("New event in GetContainerState")
+				resp := &dockerpb.GetNetworkStateResponse{
+					Type:   string(event.Type),
+					Action: string(event.Action),
+					Actor: &dockerpb.Actor{
+						Id:         event.Actor.ID,
+						Attributes: event.Actor.Attributes,
+					},
+				}
+				if err := stream.Send(resp); err != nil {
+					log.Printf("Send error: %s", err.Error())
+					// log.Println("Stop gRPC Server-Side streaming")
+					return err
+				}
+			}
+		}
+	}
+}
+
+func (d *DockerService) GetVolumeState(req *dockerpb.GetVolumeStateRequest, stream grpc.ServerStreamingServer[dockerpb.GetVolumeStateResponse]) error {
+	ctx := stream.Context()
+
+	eventCh := make(chan events.Message)
+	errCh := make(chan error)
+	go volumes.EventStream(ctx, d.cli, eventCh, errCh)
+
+	// log.Println("Start gRPC Server-Side streaming")
+
+	for {
+		select {
+		case <-ctx.Done():
+			{
+				// log.Println("Stop gRPC Server-Side streaming")
+				return nil
+			}
+		case err := <-errCh:
+			{
+				if err != nil {
+					// log.Println("Stop gRPC Server-Side streaming")
+					return err
+				}
+			}
+		case event := <-eventCh:
+			{
+				// fmt.Println("New event in GetContainerState")
+				resp := &dockerpb.GetVolumeStateResponse{
+					Type:   string(event.Type),
+					Action: string(event.Action),
+					Actor: &dockerpb.Actor{
+						Id:         event.Actor.ID,
+						Attributes: event.Actor.Attributes,
+					},
+				}
+				if err := stream.Send(resp); err != nil {
+					log.Printf("Send error: %s", err.Error())
+					// log.Println("Stop gRPC Server-Side streaming")
 					return err
 				}
 			}
@@ -489,8 +725,9 @@ func (d *DockerService) startGitBuild(req *dockerpb.CreateFromGitRequest, buildI
 		// Dockerfile is not specified in the request, check in the directory
 		// If Dockerfile doesn`t exist, throw error
 		if !common.FileExists(dockerfileDir) {
-			common.SendLog(logCh, err.Error())
-			log.Println(err.Error())
+			notExist := "Dockerfile does not exist"
+			common.SendLog(logCh, notExist)
+			log.Println(notExist)
 			return
 		}
 	} else {

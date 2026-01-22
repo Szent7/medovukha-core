@@ -31,12 +31,24 @@ func GetVolumeList(cli dc.IDockerClient) ([]types.VolumeBaseInfo, error) {
 	return volList, nil
 }
 
-func GetVolumeRawList(ctx context.Context, cli dc.IDockerClient) (volume.ListResponse, error) {
-	return cli.VolumeList(ctx, volume.ListOptions{})
+func GetVolume(ctx context.Context, cli dc.IDockerClient, volumeID string) (types.VolumeBaseInfo, error) {
+	volumeInspect, err := cli.VolumeInspect(ctx, volumeID)
+	if err != nil {
+		return types.VolumeBaseInfo{}, err
+	}
+
+	volSummary := types.VolumeBaseInfo{
+		Name:       volumeInspect.Name,
+		Driver:     volumeInspect.Driver,
+		Mountpoint: volumeInspect.Mountpoint,
+		Created:    volumeInspect.CreatedAt,
+	}
+
+	return volSummary, nil
 }
 
-func GetVolume(ctx context.Context, cli dc.IDockerClient, volumeID string) (volume.Volume, error) {
-	return cli.VolumeInspect(ctx, volumeID)
+func GetVolumeRawList(ctx context.Context, cli dc.IDockerClient) (volume.ListResponse, error) {
+	return cli.VolumeList(ctx, volume.ListOptions{})
 }
 
 func RemoveVolumeByID(ctx context.Context, cli dc.IDockerClient, volumeID string, force bool) error {

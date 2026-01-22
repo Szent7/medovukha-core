@@ -41,8 +41,37 @@ func GetNetworkList(ctx context.Context, cli dc.IDockerClient) ([]types.NetworkB
 	return netList, nil
 }
 
+func GetNetwork(ctx context.Context, cli dc.IDockerClient, networkID string) (types.NetworkBaseInfo, error) {
+	networkInspect, err := GetNetworkSummary(ctx, cli, networkID)
+	if err != nil {
+		return types.NetworkBaseInfo{}, err
+	}
+
+	ntwSummary := types.NetworkBaseInfo{
+		Name:       networkInspect.Name,
+		Id:         networkInspect.ID,
+		Driver:     networkInspect.Driver,
+		EnableIPv6: networkInspect.EnableIPv6,
+		IPAMDriver: networkInspect.IPAM.Driver,
+	}
+
+	ntwSummary.Subnet = make([]string, len(networkInspect.IPAM.Config))
+	ntwSummary.Gateway = make([]string, len(networkInspect.IPAM.Config))
+	for i, netconfig := range networkInspect.IPAM.Config {
+		ntwSummary.Subnet[i] = netconfig.Subnet
+		ntwSummary.Gateway[i] = netconfig.Gateway
+	}
+	if networkInspect.Name == "none" || networkInspect.Name == "host" || networkInspect.Name == "bridge" {
+		ntwSummary.DockerNetwork = true
+	} else {
+		ntwSummary.DockerNetwork = false
+	}
+
+	return ntwSummary, nil
+}
+
 func IsNetworkUsed(ctx context.Context, cli dc.IDockerClient, networkID string) (bool, error) {
-	network, err := GetNetwork(ctx, cli, networkID)
+	network, err := GetNetworkSummary(ctx, cli, networkID)
 	if err != nil {
 		return false, err
 	}
@@ -54,7 +83,7 @@ func GetNetworkRawList(ctx context.Context, cli dc.IDockerClient) ([]network.Sum
 	return cli.NetworkList(ctx, network.ListOptions{})
 }
 
-func GetNetwork(ctx context.Context, cli dc.IDockerClient, networkID string) (network.Summary, error) {
+func GetNetworkSummary(ctx context.Context, cli dc.IDockerClient, networkID string) (network.Summary, error) {
 	return cli.NetworkInspect(ctx, networkID, network.InspectOptions{Verbose: true})
 }
 

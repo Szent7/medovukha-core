@@ -20,6 +20,40 @@ import (
 	"github.com/docker/go-connections/nat"
 )
 
+func GetContainer(ctx context.Context, cli dc.IDockerClient, containerID string) (types.ContainerBaseInfo, error) {
+	containerInspect, err := cli.ContainerInspect(ctx, containerID)
+	if err != nil {
+		return types.ContainerBaseInfo{}, err
+	}
+
+	formattedTime, _ := common.StrToUNIXTime(containerInspect.Created)
+
+	conSummary := types.ContainerBaseInfo{
+		Id:        containerInspect.ID,
+		Names:     []string{containerInspect.Name},
+		ImageName: containerInspect.Image,
+		Created:   formattedTime,
+		State:     containerInspect.State.Status,
+	}
+	if containerInspect.HostConfig.PortBindings != nil {
+		conSummary.Ports = make([]types.Port, len(containerInspect.HostConfig.PortBindings))
+		for i := 0; i < len(containerInspect.HostConfig.PortBindings); i++ {
+			for natPort, portBindings := range containerInspect.HostConfig.PortBindings {
+				for _, pb := range portBindings {
+					parsedHostPort, _ := common.StrToUint16(pb.HostPort)
+					parsedContainerPort, _ := common.StrToUint16(natPort.Port())
+					conSummary.Ports[i].IP = pb.HostIP
+					conSummary.Ports[i].PublicPort = parsedHostPort
+					conSummary.Ports[i].PrivatePort = parsedContainerPort
+					conSummary.Ports[i].Type = natPort.Proto()
+				}
+			}
+		}
+	}
+
+	return conSummary, nil
+}
+
 func GetContainerBaseInfoList(ctx context.Context, cli dc.IDockerClient) ([]types.ContainerBaseInfo, error) {
 	containers, err := GetContainerRawList(ctx, cli)
 	if err != nil {
@@ -305,7 +339,7 @@ func RemoveContainerByID(ctx context.Context, cli dc.IDockerClient, id string) e
 			}); err != nil {
 				return err
 			}
-			fmt.Println("Started: ", con.Id)
+			fmt.Println("Removed: ", con.Id)
 			return nil
 		}
 	}

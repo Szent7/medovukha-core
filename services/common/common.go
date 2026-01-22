@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Szent7/medovukha-core/ipc/types"
 	dockerpb "github.com/Szent7/medovukha-core/proto/docker/v1"
@@ -80,4 +82,30 @@ func ConvertPorts(jsonPorts []types.Port) []*dockerpb.Port {
 		}
 	}
 	return grpcPorts
+}
+
+func StrToUint16(s string) (uint16, error) {
+	s = strings.TrimSpace(s)
+
+	val, err := strconv.ParseUint(s, 10, 16)
+	if err != nil {
+		return 0, fmt.Errorf("не удалось распарсить %q как uint16: %w", s, err)
+	}
+
+	if val > 0xFFFF {
+		return 0, errors.New("число превышает диапазон uint16")
+	}
+
+	return uint16(val), nil
+}
+
+func StrToUNIXTime(s string) (int64, error) {
+	s = strings.TrimSpace(s)
+
+	t, err := time.Parse(time.RFC3339Nano, s)
+	if err != nil {
+		return 0, err
+	}
+
+	return t.Unix(), nil
 }

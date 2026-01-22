@@ -4,18 +4,21 @@ import (
 	"context"
 	"io"
 
-	ts "github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/build"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/api/types/volume"
+	"github.com/docker/docker/client"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 type IDockerClient interface {
 	//Containers
-	ContainerList(ctx context.Context, options container.ListOptions) ([]ts.Container, error)
+	ContainerInspect(ctx context.Context, containerID string) (container.InspectResponse, error)
+
+	ContainerList(ctx context.Context, options container.ListOptions) ([]container.Summary, error)
 
 	ContainerPause(ctx context.Context, containerID string) error
 
@@ -35,22 +38,28 @@ type IDockerClient interface {
 	ContainerStop(ctx context.Context, containerID string, options container.StopOptions) error
 
 	//Images
+	ImageInspect(ctx context.Context, imageID string, inspectOpts ...client.ImageInspectOption) (image.InspectResponse, error)
+
 	ImagePull(ctx context.Context, refStr string, options image.PullOptions) (io.ReadCloser, error)
 
 	ImageList(ctx context.Context, options image.ListOptions) ([]image.Summary, error)
 
 	ImageRemove(ctx context.Context, imageID string, options image.RemoveOptions) ([]image.DeleteResponse, error)
 
-	ImageBuild(ctx context.Context, buildContext io.Reader, options ts.ImageBuildOptions) (ts.ImageBuildResponse, error)
+	ImageBuild(ctx context.Context, buildContext io.Reader, options build.ImageBuildOptions) (build.ImageBuildResponse, error)
 
 	//Networks
 	NetworkList(ctx context.Context, options network.ListOptions) ([]network.Summary, error)
+
 	NetworkInspect(ctx context.Context, networkID string, options network.InspectOptions) (network.Inspect, error)
+
 	NetworkRemove(ctx context.Context, networkID string) error
 
 	//Volumes
 	VolumeList(ctx context.Context, options volume.ListOptions) (volume.ListResponse, error)
+
 	VolumeInspect(ctx context.Context, volumeID string) (volume.Volume, error)
+
 	VolumeRemove(ctx context.Context, volumeID string, force bool) error
 
 	//Events

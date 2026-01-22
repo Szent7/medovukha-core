@@ -16,6 +16,7 @@ service DockerService {
   //containers
   //
   //
+  rpc GetContainerByID(GetContainerByIDRequest) returns (GetContainerByIDResponse);
   rpc GetContainerList(GetContainerListRequest) returns (GetContainerListResponse);
   rpc PauseContainerByID(PauseContainerByIDRequest) returns (PauseContainerByIDResponse);
   rpc UnpauseContainerByID(UnpauseContainerByIDRequest) returns (UnpauseContainerByIDResponse);
@@ -29,6 +30,7 @@ service DockerService {
   //images
   //
   //
+  rpc GetImageByID(GetImageByIDRequest) returns (GetImageByIDResponse);
   rpc GetImageList(GetImageListRequest) returns (GetImageListResponse);
   rpc RemoveImage(RemoveImageRequest) returns (RemoveImageResponse);
   //
@@ -36,6 +38,7 @@ service DockerService {
   //networks
   //
   //
+  rpc GetNetworkByID(GetNetworkByIDRequest) returns (GetNetworkByIDResponse);
   rpc GetNetworkList(GetNetworkListRequest) returns (GetNetworkListResponse);
   rpc RemoveNetwork(RemoveNetworkRequest) returns (RemoveNetworkResponse);
   //
@@ -43,6 +46,7 @@ service DockerService {
   //volumes
   //
   //
+  rpc GetVolumeByID(GetVolumeByIDRequest) returns (GetVolumeByIDResponse);
   rpc GetVolumeList(GetVolumeListRequest) returns (GetVolumeListResponse);
   rpc RemoveVolume(RemoveVolumeRequest) returns (RemoveVolumeResponse);
   //
@@ -58,6 +62,9 @@ service DockerService {
   //
   //
   rpc GetContainerState(GetContainerStateRequest) returns (stream GetContainerStateResponse);
+  rpc GetImageState(GetImageStateRequest) returns (stream GetImageStateResponse);
+  rpc GetNetworkState(GetNetworkStateRequest) returns (stream GetNetworkStateResponse);
+  rpc GetVolumeState(GetVolumeStateRequest) returns (stream GetVolumeStateResponse);
 }
 
 //
@@ -96,6 +103,12 @@ message ContainerBaseInfo {
   string state = 6;
 }
 
+message GetContainerByIDRequest {
+  string id = 1;
+}
+message GetContainerByIDResponse {
+  ContainerBaseInfo item = 1;
+}
 message PauseContainerByIDRequest {
   string id = 1;
 }
@@ -146,6 +159,14 @@ message GetContainerListRequest {}
 //images
 //
 //
+message GetImageByIDRequest {
+  string id = 1;
+}
+
+message GetImageByIDResponse {
+  ImageBaseInfo item = 1;
+}
+
 message GetImageListRequest {}
 
 message GetImageListResponse {
@@ -174,6 +195,14 @@ message RemoveImageResponse {
 //networks
 //
 //
+message GetNetworkByIDRequest {
+  string id = 1;
+}
+
+message GetNetworkByIDResponse {
+  NetworkBaseInfo item = 1;
+}
+
 message GetNetworkListRequest {}
 
 message GetNetworkListResponse {
@@ -206,6 +235,14 @@ message RemoveNetworkResponse {
 //volumes
 //
 //
+message GetVolumeByIDRequest {
+  string id = 1;
+}
+
+message GetVolumeByIDResponse {
+  VolumeBaseInfo item = 1;
+}
+
 message GetVolumeListRequest {}
 
 message GetVolumeListResponse {
@@ -278,6 +315,11 @@ message CreateFromGitResponse {
 //events
 //
 //
+message Actor {
+  string id = 1;
+  map<string, string> attributes = 2;
+}
+
 message GetContainerStateRequest {}
 
 message GetContainerStateResponse {
@@ -286,7 +328,26 @@ message GetContainerStateResponse {
   Actor actor = 3;
 }
 
-message Actor {
-  string id = 1;
-  map<string, string> attributes = 2;
+message GetImageStateRequest {}
+
+message GetImageStateResponse {
+  string type = 1;
+  string action = 2;
+  Actor actor = 3;
+}
+
+message GetNetworkStateRequest {}
+
+message GetNetworkStateResponse {
+  string type = 1;
+  string action = 2;
+  Actor actor = 3;
+}
+
+message GetVolumeStateRequest {}
+
+message GetVolumeStateResponse {
+  string type = 1;
+  string action = 2;
+  Actor actor = 3;
 }
